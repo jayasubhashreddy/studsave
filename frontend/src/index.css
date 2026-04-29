@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --paper:      #faf8f3;
+    --paper2:     #f3efe6;
+    --paper3:     #ece6da;
+    --sidebar:    #1c2b1e;
+    --sidebar2:   #243028;
+    --sidebar3:   #2d3b31;
+    --green:      #2d6a4f;
+    --green2:     #1b4332;
+    --green-lt:   #d8f3dc;
+    --green-md:   #95d5b2;
+    --amber:      #b45309;
+    --amber-lt:   #fef3c7;
+    --red:        #b91c1c;
+    --red-lt:     #fee2e2;
+    --blue:       #1d4ed8;
+    --blue-lt:    #dbeafe;
+    --ink:        #1a1a1a;
+    --ink2:       #4a4a4a;
+    --ink3:       #8a8a8a;
+    --border:     #ddd8cf;
+    --border2:    #ccc6bc;
+  }
+
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+  *::-webkit-scrollbar { width: 5px; height: 5px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(45,106,79,0.2); }
+}
+
+@layer components {
+  /* ── Sidebar ─────────────────────────── */
+  .sidebar { background: var(--sidebar); }
+
+  .nav-row {
+    display: flex; align-items: center; gap: 4px;
+    border-radius: 8px; transition: background 0.12s;
+  }
+  .nav-btn {
+    flex: 1; display: flex; align-items: center; gap: 7px;
+    padding: 6px 8px; border-radius: 8px; font-size: 0.8125rem;
+    font-weight: 500; color: rgba(255,255,255,0.55);
+    transition: color 0.12s; cursor: pointer; background: none; border: none; text-align: left;
+  }
+  .nav-btn:hover { color: rgba(255,255,255,0.9); }
+  .nav-row:hover { background: rgba(255,255,255,0.06); }
+  .nav-active { background: rgba(45,106,79,0.25) !important; }
+  .nav-active .nav-btn { color: var(--green-md) !important; font-weight: 600; }
+
+  .nav-icon-btn {
+    padding: 4px; border-radius: 6px; border: none; background: none; cursor: pointer;
+    color: rgba(255,255,255,0.3); transition: all 0.12s; flex-shrink: 0;
+  }
+  .nav-icon-btn:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.1); }
+  .nav-icon-btn.danger:hover { color: #fca5a5; background: rgba(239,68,68,0.15); }
+  .nav-icon-btn.add:hover { color: var(--green-md); background: rgba(45,106,79,0.3); }
+  .nav-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; padding-right: 6px; }
+  .nav-row:hover .nav-actions { opacity: 1; }
+
+  /* ── Buttons ─────────────────────────── */
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--green); color: #fff;
+    font-weight: 600; font-size: 0.875rem; font-family: inherit;
+    padding: 8px 16px; border-radius: 10px;
+    border: none; cursor: pointer; transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(27,67,50,0.3);
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--green2); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(27,67,50,0.4); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; color: var(--ink2);
+    font-weight: 500; font-size: 0.875rem; font-family: inherit;
+    padding: 8px 14px; border-radius: 10px;
+    border: 1.5px solid var(--border); cursor: pointer; transition: all 0.15s;
+  }
+  .btn-ghost:hover { background: var(--paper3); color: var(--ink); border-color: var(--border2); }
+
+  /* ── Inputs ──────────────────────────── */
+  .input {
+    width: 100%; background: var(--paper);
+    border: 1.5px solid var(--border); border-radius: 10px;
+    color: var(--ink); padding: 9px 13px; font-size: 0.875rem;
+    font-family: 'DM Sans', sans-serif; outline: none; transition: all 0.15s;
+  }
+  .input::placeholder { color: var(--ink3); }
+  .input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(45,106,79,0.12); }
+
+  /* ── Modal ───────────────────────────── */
+  .modal-card {
+    background: var(--paper); border: 1.5px solid var(--border);
+    border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  }
+
+  /* ── Content blocks ──────────────────── */
+  .block-card {
+    background: #fff; border: 1.5px solid var(--border);
+    border-radius: 14px; overflow: hidden; width: 100%;
+    transition: box-shadow 0.15s;
+  }
+  .block-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+  .block-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 14px; background: var(--paper2);
+    border-bottom: 1.5px solid var(--border);
+  }
+
+  /* ── Progress badges ─────────────────── */
+  .badge-progress-pending    { background:#f3f4f6; color:#6b7280; font-size:0.7rem; padding:2px 9px; border-radius:99px; font-weight:600; white-space:nowrap; }
+  .badge-progress-in-progress{ background:var(--amber-lt); color:var(--amber); font-size:0.7rem; padding:2px 9px; border-radius:99px; font-weight:600; white-space:nowrap; }
+  .badge-progress-completed  { background:var(--green-lt); color:var(--green2); font-size:0.7rem; padding:2px 9px; border-radius:99px; font-weight:600; white-space:nowrap; }
+
+  /* ── Code blocks ─────────────────────── */
+  pre[class*="language-"] {
+    border-radius: 10px !important; margin: 0 !important;
+    font-size: 0.8125rem !important; border: 1.5px solid var(--border) !important;
+  }
+  code[class*="language-"] { font-family: 'DM Mono', monospace !important; font-size: 0.8125rem !important; }
+}
+
+/* ── Animations ──────────────────────────── */
+@keyframes fadeIn  { from{opacity:0}to{opacity:1} }
+@keyframes slideUp { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+@keyframes slideIn { from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)} }
+
+.animate-fade-in  { animation: fadeIn  0.2s ease-out; }
+.animate-slide-up { animation: slideUp 0.2s ease-out; }
+.animate-slide-in { animation: slideIn 0.18s ease-out; }
+
+/* ── Mobile ──────────────────────────────── */
+@media (max-width:1023px) {
+  aside { width: min(280px, 88vw) !important; }
+}
