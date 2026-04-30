@@ -15,12 +15,13 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
 
-// API Routes — no auth needed at HTTP level, middleware handles single-user
+// API Routes — Single-user app, no authentication required
 app.use('/api/academics', require('./routes/academics'));
 app.use('/api/semesters', require('./routes/semesters'));
 app.use('/api/subjects',  require('./routes/subjects'));
 app.use('/api/units',     require('./routes/units'));
 app.use('/api/search',    require('./routes/search'));
+app.use('/api/admin',     require('./routes/admin'));
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', app: 'StudSave' }));
 
