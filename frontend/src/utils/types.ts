@@ -32,6 +32,7 @@ export interface Subject {
   color: string;
   icon: string;
   createdAt: string;
+  isLocked?: boolean;
 }
 
 export type Progress = 'pending' | 'in-progress' | 'completed';
