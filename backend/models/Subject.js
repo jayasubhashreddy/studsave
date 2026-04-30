@@ -10,7 +10,7 @@ const SubjectSchema = new mongoose.Schema({
   icon:        { type: String, default: '📚' },
   // Lock fields
   isLocked:    { type: Boolean, default: false },
-  pinHash:     { type: String, default: null },  // bcrypt hash stored server-side
+  pin:         { type: String, default: null },  // stored as plain text
 }, { timestamps: true });
 
 SubjectSchema.index({ semesterId: 1 });
