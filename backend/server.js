@@ -34,9 +34,10 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(clientBuild, 'index.html'));
 });
 
+// Global error handler — log the full stack so you can debug from server logs
 app.use((err, _req, res, _next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Internal Server Error' });
+  console.error('🔥 Unhandled error:', err.stack || err.message);
+  res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
 const PORT = process.env.PORT || 5000;
@@ -46,7 +47,7 @@ app.listen(PORT, () => {
   const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
   const PING_INTERVAL_MS = 5 * 60 * 1000;
 
-  setInterval(async () => {
+  setInterval(() => {
     try {
       const http = RENDER_URL.startsWith('https') ? require('https') : require('http');
       http.get(`${RENDER_URL}/api/health`, (res) => {

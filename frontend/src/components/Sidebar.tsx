@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, BookOpen, Menu, X, Folder as FolderIcon, FileText } from 'lucide-react';
+import { ChevronRight, BookOpen, Menu, X, Folder as FolderIcon, FileText, Lock } from 'lucide-react';
 import { useApp, Folder, FileItem } from '../context/AppContext';
 import api from '../utils/api';
 
@@ -12,39 +12,53 @@ export default function Sidebar() {
   } = useApp();
 
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [files,   setFiles]   = useState<{ [folderId: string]: FileItem[] }>({});
+  // files keyed by folderId
+  const [files, setFiles] = useState<{ [folderId: string]: FileItem[] }>({});
+  // subfolders keyed by parentFolderId
+  const [subfolders, setSubfolders] = useState<{ [folderId: string]: Folder[] }>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  // Load top-level folders only
   useEffect(() => {
     api.get('/folders').then(r => setFolders(r.data)).catch(() => {});
   }, [refreshTrigger]);
 
+  // Refresh open folders on trigger
+  useEffect(() => {
+    expanded.forEach(async folderId => {
+      try {
+        const [filesRes, subfoldersRes] = await Promise.all([
+          api.get(`/files/folder/${folderId}`),
+          api.get(`/folders/${folderId}/subfolders`)
+        ]);
+        setFiles(prev => ({ ...prev, [folderId]: filesRes.data }));
+        setSubfolders(prev => ({ ...prev, [folderId]: subfoldersRes.data }));
+      } catch {}
+    });
+  }, [refreshTrigger]);
+
   const toggleFolder = async (folder: Folder) => {
+    // Navigate to folder in main content (lock gate handled there)
     setSelectedFolder(folder);
     const next = new Set(expanded);
     if (next.has(folder._id)) {
       next.delete(folder._id);
     } else {
       next.add(folder._id);
-      if (!files[folder._id]) {
+      // Only load contents if not locked (locked folders show gate in MainContent)
+      if (!folder.isLocked) {
         try {
-          const r = await api.get(`/files/folder/${folder._id}`);
-          setFiles(prev => ({ ...prev, [folder._id]: r.data }));
+          const [filesRes, subfoldersRes] = await Promise.all([
+            api.get(`/files/folder/${folder._id}`),
+            api.get(`/folders/${folder._id}/subfolders`)
+          ]);
+          setFiles(prev => ({ ...prev, [folder._id]: filesRes.data }));
+          setSubfolders(prev => ({ ...prev, [folder._id]: subfoldersRes.data }));
         } catch {}
       }
     }
     setExpanded(next);
   };
-
-  // refresh files list when triggered
-  useEffect(() => {
-    expanded.forEach(async folderId => {
-      try {
-        const r = await api.get(`/files/folder/${folderId}`);
-        setFiles(prev => ({ ...prev, [folderId]: r.data }));
-      } catch {}
-    });
-  }, [refreshTrigger]);
 
   if (!sidebarOpen) return (
     <button onClick={() => setSidebarOpen(true)}
@@ -53,6 +67,50 @@ export default function Sidebar() {
       <Menu size={18} style={{ color: 'rgba(255,255,255,0.8)' }} />
     </button>
   );
+
+  const renderFolderTree = (folder: Folder, depth = 0) => {
+    const isActive = selectedFolder?._id === folder._id && !selectedFile;
+    const isExpanded = expanded.has(folder._id);
+    const folderFiles = files[folder._id] || [];
+    const folderSubs = subfolders[folder._id] || [];
+    const ml = depth > 0 ? `ml-${depth * 3}` : '';
+
+    return (
+      <div key={folder._id} className={ml}>
+        <div className={`nav-row ${isActive ? 'nav-active' : ''}`}>
+          <button className="nav-btn" onClick={() => toggleFolder(folder)}>
+            <ChevronRight size={13}
+              className={`flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+            <span className="text-base leading-none">{folder.icon || '📁'}</span>
+            <span className="truncate">{folder.name}</span>
+            {folder.isLocked && <Lock size={10} style={{ color: 'rgba(239,68,68,0.7)', flexShrink: 0 }} />}
+          </button>
+        </div>
+
+        {isExpanded && !folder.isLocked && (
+          <>
+            {/* Subfolders */}
+            {folderSubs.map(sub => (
+              <div key={sub._id} className="ml-4 mt-0.5">
+                {renderFolderTree(sub, depth + 1)}
+              </div>
+            ))}
+            {/* Files */}
+            {folderFiles.map(file => (
+              <div key={file._id} className="ml-6 mt-0.5">
+                <div className={`nav-row ${selectedFile?._id === file._id ? 'nav-active' : ''}`}>
+                  <button className="nav-btn" onClick={() => { setSelectedFolder(folder); setSelectedFile(file); }}>
+                    <FileText size={11} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                    <span className="truncate text-xs">{file.name}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -74,7 +132,7 @@ export default function Sidebar() {
           <button onClick={() => setSidebarOpen(false)} className="nav-icon-btn"><X size={15} /></button>
         </div>
 
-        {/* Navigation tree — read-only, no CRUD buttons */}
+        {/* Navigation tree */}
         <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {folders.length === 0 && (
             <div className="text-center py-10 text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
@@ -82,38 +140,14 @@ export default function Sidebar() {
               No folders yet
             </div>
           )}
-          {folders.map(folder => (
-            <div key={folder._id}>
-              {/* Folder row — click to navigate only */}
-              <div className={`nav-row ${selectedFolder?._id === folder._id && !selectedFile ? 'nav-active' : ''}`}>
-                <button className="nav-btn" onClick={() => toggleFolder(folder)}>
-                  <ChevronRight size={13}
-                    className={`flex-shrink-0 transition-transform ${expanded.has(folder._id) ? 'rotate-90' : ''}`} />
-                  <span className="text-base leading-none">{folder.icon || '📁'}</span>
-                  <span className="truncate">{folder.name}</span>
-                </button>
-              </div>
-
-              {/* Files inside folder */}
-              {expanded.has(folder._id) && (files[folder._id] || []).map(file => (
-                <div key={file._id} className="ml-6 mt-0.5">
-                  <div className={`nav-row ${selectedFile?._id === file._id ? 'nav-active' : ''}`}>
-                    <button className="nav-btn" onClick={() => { setSelectedFolder(folder); setSelectedFile(file); }}>
-                      <FileText size={11} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
-                      <span className="truncate text-xs">{file.name}</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
+          {folders.map(folder => renderFolderTree(folder))}
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 flex items-center gap-2 flex-shrink-0"
+        <div className="px-4 py-3 flex-shrink-0"
           style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
-            Sidebar is for navigation only
+            Sidebar — navigation only
           </div>
         </div>
       </aside>

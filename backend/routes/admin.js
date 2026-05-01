@@ -1,34 +1,50 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
 const Subject = require('../models/Subject');
+const Folder = require('../models/Folder');
 
 /**
  * GET /api/admin/locks
- * Returns all subjects with locks (isLocked: true) and their folder/password info
- * FORMAT: Admin can see folder names and hashed passwords (for reference)
+ * Returns all subjects AND folders with locks
  */
-router.get('/locks', async (req, res) => {
+router.get('/locks', auth, async (req, res) => {
   try {
-    // Get all subjects that are locked
+    // Locked subjects
     const lockedSubjects = await Subject.find({ isLocked: true })
-      .select('name semesterId academicId isLocked pinHash createdAt')
+      .select('name semesterId academicId isLocked pin createdAt')
       .populate('semesterId', 'name')
       .populate('academicId', 'name')
       .sort({ createdAt: -1 });
 
-    const result = lockedSubjects.map(subject => ({
+    const subjectLocks = lockedSubjects.map(subject => ({
       _id: subject._id,
+      type: 'subject',
       folderName: subject.name,
       academicYear: subject.academicId?.name || 'Unknown',
       semester: subject.semesterId?.name || 'Unknown',
       isLocked: subject.isLocked,
-      passwordHash: subject.pinHash, // Hash shown for admin reference
+      password: subject.pin,       // plain text as stored
       lockedSince: subject.createdAt
     }));
 
-    res.json({ 
-      total: result.length,
-      locks: result
+    // Locked folders
+    const lockedFolders = await Folder.find({ userId: req.user._id, isLocked: true })
+      .select('name isLocked lockPassword createdAt')
+      .sort({ createdAt: -1 });
+
+    const folderLocks = lockedFolders.map(folder => ({
+      _id: folder._id,
+      type: 'folder',
+      folderName: folder.name,
+      isLocked: folder.isLocked,
+      password: folder.lockPassword, // plain text as stored
+      lockedSince: folder.createdAt
+    }));
+
+    res.json({
+      total: subjectLocks.length + folderLocks.length,
+      locks: [...subjectLocks, ...folderLocks]
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -37,12 +53,12 @@ router.get('/locks', async (req, res) => {
 
 /**
  * GET /api/admin/all-subjects
- * Returns all subjects with lock status in a clean admin format
+ * Returns all subjects with lock status
  */
-router.get('/all-subjects', async (req, res) => {
+router.get('/all-subjects', auth, async (req, res) => {
   try {
     const subjects = await Subject.find({})
-      .select('name semesterId academicId isLocked pinHash')
+      .select('name semesterId academicId isLocked pin')
       .populate('semesterId', 'name')
       .populate('academicId', 'name')
       .sort({ academicId: 1, semesterId: 1, name: 1 });
@@ -53,10 +69,9 @@ router.get('/all-subjects', async (req, res) => {
       academic: s.academicId?.name || '-',
       semester: s.semesterId?.name || '-',
       locked: s.isLocked,
-      passwordHash: s.isLocked ? s.pinHash : null
+      password: s.isLocked ? s.pin : null  // plain text
     }));
 
-    // Group by academic year for cleaner view
     const grouped = {};
     result.forEach(item => {
       if (!grouped[item.academic]) grouped[item.academic] = {};
@@ -64,7 +79,7 @@ router.get('/all-subjects', async (req, res) => {
       grouped[item.academic][item.semester].push(item);
     });
 
-    res.json({ 
+    res.json({
       totalSubjects: subjects.length,
       lockedCount: subjects.filter(s => s.isLocked).length,
       byAcademic: grouped
