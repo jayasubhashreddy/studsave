@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StudSave</title>
+  <meta name="description" content="Organize your academics, semesters, subjects and study notes in one place." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+
+  <!-- React + ReactDOM -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone (JSX transform) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <!-- Axios -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.294.0/umd/lucide.min.js"></script>
+
+  <!-- Prism JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+
+  <style>
+    :root {
+      --paper:      #faf8f3;
+      --paper2:     #f3efe6;
+      --paper3:     #ece6da;
+      --sidebar:    #1c2b1e;
+      --sidebar2:   #243028;
+      --sidebar3:   #2d3b31;
+      --green:      #2d6a4f;
+      --green2:     #1b4332;
+      --green-lt:   #d8f3dc;
+      --green-md:   #95d5b2;
+      --amber:      #b45309;
+      --amber-lt:   #fef3c7;
+      --red:        #b91c1c;
+      --red-lt:     #fee2e2;
+      --blue:       #1d4ed8;
+      --blue-lt:    #dbeafe;
+      --ink:        #1a1a1a;
+      --ink2:       #4a4a4a;
+      --ink3:       #8a8a8a;
+      --border:     #ddd8cf;
+      --border2:    #ccc6bc;
+    }
+    * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+    *::-webkit-scrollbar { width: 5px; height: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+    .scrollbar-none { scrollbar-width: none; }
+    .scrollbar-none::-webkit-scrollbar { display: none; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+    ::selection { background: rgba(45,106,79,0.2); }
+
+    /* Sidebar */
+    .sidebar { background: var(--sidebar); }
+    .nav-row { display:flex; align-items:center; gap:4px; border-radius:8px; transition:background 0.12s; }
+    .nav-btn { flex:1; display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:8px; font-size:0.8125rem; font-weight:500; color:rgba(255,255,255,0.55); transition:color 0.12s; cursor:pointer; background:none; border:none; text-align:left; }
+    .nav-btn:hover { color:rgba(255,255,255,0.9); }
+    .nav-row:hover { background:rgba(255,255,255,0.06); }
+    .nav-active { background:rgba(45,106,79,0.25) !important; }
+    .nav-active .nav-btn { color:var(--green-md) !important; font-weight:600; }
+    .nav-icon-btn { padding:4px; border-radius:6px; border:none; background:none; cursor:pointer; color:rgba(255,255,255,0.3); transition:all 0.12s; flex-shrink:0; }
+    .nav-icon-btn:hover { color:rgba(255,255,255,0.9); background:rgba(255,255,255,0.1); }
+    .nav-icon-btn.danger:hover { color:#fca5a5; background:rgba(239,68,68,0.15); }
+
+    /* Buttons */
+    .btn-primary { display:inline-flex; align-items:center; gap:6px; background:var(--green); color:#fff; font-weight:600; font-size:0.875rem; font-family:inherit; padding:8px 16px; border-radius:10px; border:none; cursor:pointer; transition:all 0.15s; box-shadow:0 2px 8px rgba(27,67,50,0.3); }
+    .btn-primary:hover:not(:disabled) { background:var(--green2); transform:translateY(-1px); box-shadow:0 4px 14px rgba(27,67,50,0.4); }
+    .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+    .btn-ghost { display:inline-flex; align-items:center; gap:6px; background:transparent; color:var(--ink2); font-weight:500; font-size:0.875rem; font-family:inherit; padding:8px 14px; border-radius:10px; border:1.5px solid var(--border); cursor:pointer; transition:all 0.15s; }
+    .btn-ghost:hover { background:var(--paper3); color:var(--ink); border-color:var(--border2); }
+
+    /* Inputs */
+    .input { width:100%; background:var(--paper); border:1.5px solid var(--border); border-radius:10px; color:var(--ink); padding:9px 13px; font-size:0.875rem; font-family:'DM Sans',sans-serif; outline:none; transition:all 0.15s; }
+    .input::placeholder { color:var(--ink3); }
+    .input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(45,106,79,0.12); }
+
+    /* Modal */
+    .modal-card { background:var(--paper); border:1.5px solid var(--border); border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,0.18); }
+
+    /* Blocks */
+    .block-card { background:#fff; border:1.5px solid var(--border); border-radius:14px; overflow:hidden; width:100%; transition:box-shadow 0.15s; }
+    .block-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.06); }
+    .block-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 14px; background:var(--paper2); border-bottom:1.5px solid var(--border); }
+
+    /* Animations */
+    @keyframes fadeIn  { from{opacity:0}to{opacity:1} }
+    @keyframes slideUp { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+    .animate-fade-in  { animation:fadeIn  0.2s ease-out; }
+    .animate-slide-up { animation:slideUp 0.2s ease-out; }
+
+    /* Code */
+    pre[class*="language-"] { border-radius:10px !important; margin:0 !important; font-size:0.8125rem !important; border:1.5px solid var(--border) !important; }
+    code[class*="language-"] { font-family:'DM Mono',monospace !important; font-size:0.8125rem !important; }
+
+    @media (max-width:1023px) { aside { width:min(280px, 88vw) !important; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+// ── Lucide icon helper ───────────────────────────────────────────────────────
+const Icon = ({ name, size = 16, color, className = '', style = {} }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const svg = lucide.createElement(lucide[name] || lucide.HelpCircle);
+      if (size) { svg.setAttribute('width', size); svg.setAttribute('height', size); }
+      if (color) svg.setAttribute('stroke', color);
+      if (className) svg.setAttribute('class', className);
+      Object.assign(svg.style, style);
+      ref.current.appendChild(svg);
+    }
+  }, [name, size, color, className]);
+  return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, ...style }} />;
+};
+
+// ── API ──────────────────────────────────────────────────────────────────────
+const api = {
+  get:   (url)         => axios.get('/api' + url).then(r => r.data),
+  post:  (url, data)   => axios.post('/api' + url, data).then(r => r.data),
+  put:   (url, data)   => axios.put('/api' + url, data).then(r => r.data),
+  patch: (url, data)   => axios.patch('/api' + url, data).then(r => r.data),
+  delete:(url)         => axios.delete('/api' + url).then(r => r.data),
+};
+
+// ── AppContext ───────────────────────────────────────────────────────────────
+const AppContext = createContext(null);
+
+function AppProvider({ children }) {
+  const [selectedFolder, setSelectedFolderRaw] = useState(null);
+  const [selectedFile,   setSelectedFile]       = useState(null);
+  const [sidebarOpen,    setSidebarOpen]         = useState(true);
+  const [refreshTrigger, setRefreshTrigger]      = useState(0);
+
+  const setSelectedFolder = (f) => { setSelectedFolderRaw(f); setSelectedFile(null); };
+  const triggerRefresh = () => setRefreshTrigger(n => n + 1);
+
+  return (
+    <AppContext.Provider value={{
+      selectedFolder, selectedFile,
+      setSelectedFolder, setSelectedFile,
+      sidebarOpen, setSidebarOpen,
+      refreshTrigger, triggerRefresh,
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+const useApp = () => {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp outside AppProvider');
+  return ctx;
+};
+
+// ── useAutoSave ──────────────────────────────────────────────────────────────
+function useAutoSave(fileId) {
+  const [status, setStatus] = useState('idle');
+  const timerRef      = useRef(null);
+  const resetTimerRef = useRef(null);
+  const mountedRef    = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current)      clearTimeout(timerRef.current);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
+  const save = useCallback((content) => {
+    if (timerRef.current)      clearTimeout(timerRef.current);
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    setStatus('saving');
+    timerRef.current = setTimeout(async () => {
+      try {
+        await api.patch(`/files/${fileId}/content`, { content });
+        if (!mountedRef.current) return;
+        setStatus('saved');
+        resetTimerRef.current = setTimeout(() => { if (mountedRef.current) setStatus('idle'); }, 2000);
+      } catch {
+        if (!mountedRef.current) return;
+        setStatus('error');
+        resetTimerRef.current = setTimeout(() => { if (mountedRef.current) setStatus('idle'); }, 3000);
+      }
+    }, 800);
+  }, [fileId]);
+
+  return { save, status };
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const LANGS  = ['javascript','typescript','python','java','c','cpp','css','html','sql','bash','json','text'];
+const ICONS  = ['📁','📚','🔬','💻','📐','🧬','⚗️','🎨','📊','🏛️','🎓','📝','🗂️','💡'];
+const COLORS = ['#6366f1','#2d6a4f','#1d4ed8','#7c3aed','#b45309','#dc2626','#0891b2','#db2777'];
+
+// ── SaveBadge ────────────────────────────────────────────────────────────────
+function SaveBadge({ status }) {
+  const map = {
+    saving: { icon: <Icon name="Loader2" size={11} className="animate-spin" />, text: 'Saving…', color: 'var(--ink3)' },
+    saved:  { icon: <Icon name="CheckCircle" size={11} />, text: 'Saved',  color: 'var(--green)' },
+    error:  { icon: <Icon name="AlertCircle" size={11} />, text: 'Error',  color: 'var(--red)' },
+  };
+  const c = map[status];
+  if (!c) return null;
+  return <span className="flex items-center gap-1 text-xs font-medium" style={{ color: c.color }}>{c.icon}{c.text}</span>;
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children, size = 'md' }) {
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const w = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-2xl' }[size];
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(4px)' }} />
+      <div className={`relative w-full ${w} modal-card animate-slide-up rounded-t-3xl sm:rounded-3xl overflow-y-auto`}
+        style={{ maxHeight: '92dvh' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1.5px solid var(--border)' }}>
+          <h2 className="font-bold text-base" style={{ color: 'var(--ink)' }}>{title}</h2>
+          <button onClick={onClose} className="btn-ghost" style={{ padding: '6px 8px', border: 'none' }}>
+            <Icon name="X" size={16} style={{ color: 'var(--ink3)' }} />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── LockGate ─────────────────────────────────────────────────────────────────
+function LockGate({ folder, onUnlocked }) {
+  const [pw, setPw]         = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [err, setErr]       = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const verify = async () => {
+    if (!pw.trim()) return;
+    setLoading(true); setErr('');
+    try {
+      await api.post(`/folders/${folder._id}/verify`, { password: pw });
+      onUnlocked();
+    } catch {
+      setErr('Wrong password. Try again.');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center" style={{ background: 'var(--paper)' }}>
+      <div className="w-full max-w-sm mx-auto p-8 rounded-3xl text-center"
+        style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.18)' }}>
+          <Icon name="Lock" size={28} style={{ color: 'var(--red)' }} />
+        </div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--ink)' }}>Locked Folder</h2>
+        <p className="text-sm mb-6" style={{ color: 'var(--ink3)' }}>
+          <span style={{ fontWeight: 600 }}>{folder.icon} {folder.name}</span> is protected. Enter the password to open it.
+        </p>
+        <div className="relative mb-3">
+          <input
+            type={showPw ? 'text' : 'password'}
+            value={pw}
+            onChange={e => { setPw(e.target.value); setErr(''); }}
+            onKeyDown={e => e.key === 'Enter' && verify()}
+            className="input pr-10 text-sm"
+            placeholder="Enter password…"
+            autoFocus
+          />
+          <button onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <Icon name={showPw ? 'EyeOff' : 'Eye'} size={15} />
+          </button>
+        </div>
+        {err && <p className="text-xs mb-3" style={{ color: 'var(--red)' }}>{err}</p>}
+        <button onClick={verify} disabled={loading || !pw.trim()} className="btn-primary w-full flex items-center justify-center gap-2">
+          <Icon name={loading ? 'Loader2' : 'ShieldCheck'} size={14} className={loading ? 'animate-spin' : ''} />
+          {loading ? 'Verifying…' : 'Open Folder'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── FileEditor ───────────────────────────────────────────────────────────────
+function FileEditor({ file, onUpdate }) {
+  const [content, setContent] = useState(file.content || []);
+  const [previewing, setPreviewing] = useState({});
+  const { save, status } = useAutoSave(file._id);
+  const fileRef = useRef(null);
+  const [imgTarget, setImgTarget] = useState(null);
+
+  useEffect(() => { setContent(file.content || []); setPreviewing({}); }, [file._id]);
+  useEffect(() => { if (window.Prism) Prism.highlightAll(); }, [content, previewing]);
+
+  const updateContent = useCallback((nc) => { setContent(nc); save(nc); }, [save]);
+  const addBlock = (type) => {
+    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    updateContent([...content, { type, title: '', value: '', language: 'javascript', order: content.length, _id: key }]);
+  };
+  const updateBlock = (i, f, v) => updateContent(content.map((b, idx) => idx === i ? { ...b, [f]: v } : b));
+  const removeBlock = (i) => updateContent(content.filter((_, idx) => idx !== i));
+  const moveBlock = (i, d) => {
+    const n = [...content]; const t = i + d;
+    if (t < 0 || t >= n.length) return;
+    [n[i], n[t]] = [n[t], n[i]];
+    updateContent(n);
+  };
+  const handleImageUpload = (e) => {
+    const f = e.target.files?.[0]; if (!f || imgTarget === null) return;
+    const reader = new FileReader();
+    reader.onload = ev => { updateBlock(imgTarget, 'value', ev.target.result); setImgTarget(null); };
+    reader.readAsDataURL(f);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 pb-6">
+        <div className="flex flex-wrap gap-2 mb-5">
+          {[
+            { type: 'text',  iconName: 'FileText', label: 'Text' },
+            { type: 'code',  iconName: 'Code2',    label: 'Code' },
+            { type: 'image', iconName: 'Image',    label: 'Image' },
+          ].map(({ type, iconName, label }) => (
+            <button key={type} onClick={() => addBlock(type)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
+              style={{ background: 'var(--paper2)', color: 'var(--ink2)', border: '1.5px solid var(--border)' }}>
+              <Icon name={iconName} size={12} />{label} Block
+            </button>
+          ))}
+          <div className="ml-auto"><SaveBadge status={status} /></div>
+        </div>
+
+        {content.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+              style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+              <Icon name="FileText" size={20} style={{ color: 'var(--ink3)' }} />
+            </div>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>Empty file</p>
+            <p className="text-xs" style={{ color: 'var(--ink3)' }}>Add a text, code, or image block above</p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4">
+          {content.map((block, i) => {
+            const key = block._id || `b-${i}`;
+            return (
+              <div key={key} className="block-card animate-slide-up">
+                <div className="block-toolbar">
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>
+                    {block.type === 'text' ? '📝 Text' : block.type === 'code' ? '💻 Code' : '🖼 Image'}
+                  </span>
+                  {block.type === 'code' && (
+                    <select value={block.language || 'javascript'}
+                      onChange={e => updateBlock(i, 'language', e.target.value)}
+                      className="text-xs px-2 py-1 rounded-lg ml-1"
+                      style={{ background: 'var(--paper3)', border: '1px solid var(--border)', color: 'var(--ink2)' }}>
+                      {LANGS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  )}
+                  {block.type !== 'image' && (
+                    <button onClick={() => setPreviewing(p => ({ ...p, [key]: !p[key] }))}
+                      className="text-xs px-2 py-1 rounded-lg ml-1 transition-colors hover:bg-white"
+                      style={{ color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      {previewing[key] ? 'Edit' : 'Preview'}
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <button onClick={() => moveBlock(i, -1)} disabled={i === 0} className="nav-icon-btn" style={{ opacity: i === 0 ? 0.3 : 1 }}><Icon name="ChevronUp" size={13} /></button>
+                    <button onClick={() => moveBlock(i, 1)} disabled={i === content.length - 1} className="nav-icon-btn" style={{ opacity: i === content.length - 1 ? 0.3 : 1 }}><Icon name="ChevronDown" size={13} /></button>
+                    <button onClick={() => removeBlock(i)} className="nav-icon-btn danger"><Icon name="X" size={13} /></button>
+                  </div>
+                </div>
+                <div className="p-3">
+                  <input value={block.title} onChange={e => updateBlock(i, 'title', e.target.value)}
+                    className="input mb-2 text-xs" placeholder="Block title (optional)" />
+                  {block.type === 'text' && !previewing[key] && (
+                    <textarea value={block.value} onChange={e => updateBlock(i, 'value', e.target.value)}
+                      className="input resize-y text-sm" style={{ minHeight: '8rem' }} placeholder="Write your notes here…" />
+                  )}
+                  {block.type === 'text' && previewing[key] && (
+                    <div className="min-h-16 text-sm whitespace-pre-wrap p-2 rounded-lg"
+                      style={{ background: 'var(--paper2)', color: 'var(--ink)' }}>
+                      {block.value || <span style={{ color: 'var(--ink3)' }}>Nothing to preview</span>}
+                    </div>
+                  )}
+                  {block.type === 'code' && !previewing[key] && (
+                    <textarea value={block.value} onChange={e => updateBlock(i, 'value', e.target.value)}
+                      className="input resize-y text-sm font-mono" style={{ minHeight: '10rem' }} placeholder={`Write ${block.language || 'code'} here…`} />
+                  )}
+                  {block.type === 'code' && previewing[key] && (
+                    <pre className={`language-${block.language || 'javascript'}`}><code>{block.value || '// nothing yet'}</code></pre>
+                  )}
+                  {block.type === 'image' && (
+                    block.value
+                      ? <div className="relative">
+                          <img src={block.value} alt={block.title} className="max-h-64 rounded-xl object-contain" />
+                          <button onClick={() => updateBlock(i, 'value', '')}
+                            className="absolute top-2 right-2"
+                            style={{ background: 'var(--red)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon name="X" size={13} />
+                          </button>
+                        </div>
+                      : <button onClick={() => { setImgTarget(i); fileRef.current?.click(); }}
+                          className="w-full flex flex-col items-center justify-center gap-2 text-xs hover:opacity-80 transition-all"
+                          style={{ height: '7rem', border: '2px dashed var(--border2)', borderRadius: '12px', color: 'var(--ink3)', background: 'none', cursor: 'pointer' }}>
+                          <Icon name="Image" size={20} /><span>Click to upload image</span>
+                        </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function Sidebar() {
+  const {
+    selectedFolder, selectedFile,
+    setSelectedFolder, setSelectedFile,
+    sidebarOpen, setSidebarOpen,
+    refreshTrigger,
+  } = useApp();
+
+  const [folders, setFolders]       = useState([]);
+  const [files, setFiles]           = useState({});
+  const [subfolders, setSubfolders] = useState({});
+  const [expanded, setExpanded]     = useState(new Set());
+
+  useEffect(() => {
+    api.get('/folders').then(data => setFolders(data)).catch(() => {});
+  }, [refreshTrigger]);
+
+  useEffect(() => {
+    expanded.forEach(async folderId => {
+      try {
+        const [filesData, subsData] = await Promise.all([
+          api.get(`/files/folder/${folderId}`),
+          api.get(`/folders/${folderId}/subfolders`),
+        ]);
+        setFiles(prev => ({ ...prev, [folderId]: filesData }));
+        setSubfolders(prev => ({ ...prev, [folderId]: subsData }));
+      } catch {}
+    });
+  }, [refreshTrigger]);
+
+  const toggleFolder = async (folder) => {
+    setSelectedFolder(folder);
+    const next = new Set(expanded);
+    if (next.has(folder._id)) {
+      next.delete(folder._id);
+    } else {
+      next.add(folder._id);
+      if (!folder.isLocked) {
+        try {
+          const [filesData, subsData] = await Promise.all([
+            api.get(`/files/folder/${folder._id}`),
+            api.get(`/folders/${folder._id}/subfolders`),
+          ]);
+          setFiles(prev => ({ ...prev, [folder._id]: filesData }));
+          setSubfolders(prev => ({ ...prev, [folder._id]: subsData }));
+        } catch {}
+      }
+    }
+    setExpanded(next);
+  };
+
+  if (!sidebarOpen) return (
+    <button onClick={() => setSidebarOpen(true)}
+      style={{ background: 'var(--sidebar)', position: 'fixed', top: 16, left: 16, zIndex: 40, width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.2)' }}>
+      <Icon name="Menu" size={18} style={{ color: 'rgba(255,255,255,0.8)' }} />
+    </button>
+  );
+
+  const renderFolderTree = (folder, depth = 0) => {
+    const isActive    = selectedFolder?._id === folder._id && !selectedFile;
+    const isExpanded  = expanded.has(folder._id);
+    const folderFiles = files[folder._id] || [];
+    const folderSubs  = subfolders[folder._id] || [];
+    const ml = depth > 0 ? (depth * 12) : 0;
+
+    return (
+      <div key={folder._id} style={{ marginLeft: ml }}>
+        <div className={`nav-row ${isActive ? 'nav-active' : ''}`}>
+          <button className="nav-btn" onClick={() => toggleFolder(folder)}>
+            <Icon name="ChevronRight" size={13} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+            <span style={{ fontSize: '1rem' }}>{folder.icon || '📁'}</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+            {folder.isLocked && <Icon name="Lock" size={10} style={{ color: 'rgba(239,68,68,0.7)' }} />}
+          </button>
+        </div>
+
+        {isExpanded && !folder.isLocked && (
+          <>
+            {folderSubs.map(sub => (
+              <div key={sub._id} style={{ marginLeft: 16, marginTop: 2 }}>
+                {renderFolderTree(sub, depth + 1)}
+              </div>
+            ))}
+            {folderFiles.map(file => (
+              <div key={file._id} style={{ marginLeft: 24, marginTop: 2 }}>
+                <div className={`nav-row ${selectedFile?._id === file._id ? 'nav-active' : ''}`}>
+                  <button className="nav-btn" onClick={() => { setSelectedFolder(folder); setSelectedFile(file); }}>
+                    <Icon name="FileText" size={11} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <span style={{ fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-30 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      <aside className="sidebar fixed lg:relative inset-y-0 left-0 z-30 flex-shrink-0 flex flex-col"
+        style={{ width: 256, height: '100vh', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+
+        <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--green)' }}>
+            <Icon name="BookOpen" size={15} style={{ color: '#fff' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="font-bold text-white text-sm leading-tight">StudSave</div>
+            <div className="text-xs" style={{ color: 'rgba(149,213,178,0.6)' }}>Study Smart</div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="nav-icon-btn"><Icon name="X" size={15} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-3 px-2" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {folders.length === 0 && (
+            <div className="text-center py-10 text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              <Icon name="Folder" size={22} style={{ color: 'rgba(255,255,255,0.15)', display: 'block', margin: '0 auto 8px' }} />
+              No folders yet
+            </div>
+          )}
+          {folders.map(folder => renderFolderTree(folder))}
+        </div>
+
+        <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>Sidebar — navigation only</div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ── Btn helpers ───────────────────────────────────────────────────────────────
+const BtnCreate = ({ label, iconName, onClick }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(45,106,79,0.12)', color: 'var(--green)', border: '1px solid rgba(45,106,79,0.25)' }}>
+    <Icon name={iconName} size={13} />{label}
+  </button>
+);
+const BtnEdit = ({ onClick }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(100,100,255,0.08)', color: '#6366f1', border: '1px solid rgba(100,100,255,0.2)' }}>
+    <Icon name="Pencil" size={13} />Edit
+  </button>
+);
+const BtnDelete = ({ onClick }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(220,38,38,0.08)', color: 'var(--red)', border: '1px solid rgba(220,38,38,0.18)' }}>
+    <Icon name="Trash2" size={13} />Delete
+  </button>
+);
+const BtnLock = ({ isLocked, onClick }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{
+      background: isLocked ? 'rgba(220,38,38,0.08)' : 'rgba(251,191,36,0.12)',
+      color: isLocked ? 'var(--red)' : '#b45309',
+      border: `1px solid ${isLocked ? 'rgba(220,38,38,0.2)' : 'rgba(251,191,36,0.3)'}`,
+    }}>
+    <Icon name={isLocked ? 'LockOpen' : 'Lock'} size={13} />
+    {isLocked ? 'Unlock' : 'Lock'}
+  </button>
+);
+
+// ── MainContent ───────────────────────────────────────────────────────────────
+function MainContent() {
+  const {
+    selectedFolder, selectedFile,
+    setSelectedFolder, setSelectedFile,
+    sidebarOpen, setSidebarOpen,
+    refreshTrigger, triggerRefresh,
+  } = useApp();
+
+  const [folders,    setFolders]    = useState([]);
+  const [subfolders, setSubfolders] = useState([]);
+  const [files,      setFiles]      = useState([]);
+  const [fullFile,   setFullFile]   = useState(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+  const [lockedGate,  setLockedGate]  = useState(null);
+  const [sessionUnlocked, setSessionUnlocked] = useState(new Set());
+
+  const [modal,        setModal]        = useState(null);
+  const [formName,     setFormName]     = useState('');
+  const [formIcon,     setFormIcon]     = useState('📁');
+  const [formColor,    setFormColor]    = useState('#6366f1');
+  const [formPassword, setFormPassword] = useState('');
+  const [showPw,       setShowPw]       = useState(false);
+  const [saving,       setSaving]       = useState(false);
+
+  useEffect(() => {
+    api.get('/folders').then(data => setFolders(data)).catch(() => {});
+  }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (!selectedFolder) { setSubfolders([]); setFiles([]); setLockedGate(null); return; }
+    if (selectedFolder.isLocked && !sessionUnlocked.has(selectedFolder._id)) {
+      setLockedGate(selectedFolder); return;
+    }
+    setLockedGate(null);
+    api.get(`/folders/${selectedFolder._id}/subfolders`).then(data => setSubfolders(data)).catch(() => {});
+    api.get(`/files/folder/${selectedFolder._id}`).then(data => setFiles(data)).catch(() => {});
+  }, [selectedFolder, refreshTrigger, sessionUnlocked]);
+
+  useEffect(() => {
+    if (!selectedFile) { setFullFile(null); return; }
+    setLoadingFile(true);
+    api.get(`/files/${selectedFile._id}`).then(data => setFullFile(data)).catch(() => {}).finally(() => setLoadingFile(false));
+  }, [selectedFile?._id]);
+
+  const handleFolderUnlocked = () => {
+    if (!selectedFolder) return;
+    setSessionUnlocked(s => new Set([...s, selectedFolder._id]));
+    setLockedGate(null);
+  };
+
+  const openCreateFolder    = () => { setFormName(''); setFormIcon('📁'); setFormColor('#6366f1'); setModal({ mode: 'createFolder' }); };
+  const openEditFolder      = (f) => { setFormName(f.name); setFormIcon(f.icon || '📁'); setFormColor(f.color || '#6366f1'); setModal({ mode: 'editFolder', item: f }); };
+  const openCreateFile      = () => { setFormName(''); setModal({ mode: 'createFile' }); };
+  const openEditFile        = (f) => { setFormName(f.name); setModal({ mode: 'editFile', item: f }); };
+  const openCreateSubfolder = () => { setFormName(''); setFormIcon('📁'); setFormColor('#6366f1'); setModal({ mode: 'createSubfolder' }); };
+  const openLockFolder      = (f) => { setFormPassword(''); setShowPw(false); setModal({ mode: 'lockFolder', item: f }); };
+  const openUnlockFolder    = (f) => { setFormPassword(''); setShowPw(false); setModal({ mode: 'unlockFolder', item: f }); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (modal.mode === 'createFolder') {
+        if (!formName.trim()) return;
+        const r = await api.post('/folders', { name: formName, icon: formIcon, color: formColor });
+        setSelectedFolder(r);
+      } else if (modal.mode === 'createSubfolder') {
+        if (!formName.trim() || !selectedFolder) return;
+        const r = await api.post('/folders', { name: formName, icon: formIcon, color: formColor, parentFolderId: selectedFolder._id });
+        setSelectedFolder(r);
+      } else if (modal.mode === 'editFolder') {
+        if (!formName.trim()) return;
+        await api.put(`/folders/${modal.item._id}`, { name: formName, icon: formIcon, color: formColor });
+        if (selectedFolder?._id === modal.item._id) setSelectedFolder({ ...selectedFolder, name: formName, icon: formIcon, color: formColor });
+      } else if (modal.mode === 'createFile') {
+        if (!formName.trim() || !selectedFolder) return;
+        const r = await api.post('/files', { name: formName, folderId: selectedFolder._id });
+        setSelectedFile(r);
+      } else if (modal.mode === 'editFile') {
+        if (!formName.trim()) return;
+        await api.put(`/files/${modal.item._id}`, { name: formName });
+        if (selectedFile?._id === modal.item._id) setSelectedFile({ ...selectedFile, name: formName });
+      } else if (modal.mode === 'lockFolder') {
+        if (!formPassword.trim()) { alert('Enter a password'); setSaving(false); return; }
+        await api.post(`/folders/${modal.item._id}/lock`, { password: formPassword });
+        const updated = { ...modal.item, isLocked: true };
+        if (selectedFolder?._id === modal.item._id) setSelectedFolder(updated);
+        setFolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+        setSubfolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+      } else if (modal.mode === 'unlockFolder') {
+        try {
+          await api.post(`/folders/${modal.item._id}/unlock`, { password: formPassword });
+          const updated = { ...modal.item, isLocked: false, lockPassword: null };
+          if (selectedFolder?._id === modal.item._id) setSelectedFolder(updated);
+          setFolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+          setSubfolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+          setSessionUnlocked(s => { const n = new Set(s); n.delete(modal.item._id); return n; });
+        } catch { alert('Wrong password'); setSaving(false); return; }
+      }
+      setModal(null);
+      triggerRefresh();
+    } catch (err) { alert(err?.response?.data?.message || 'Error saving'); }
+    finally { setSaving(false); }
+  };
+
+  const deleteFolder = async (f) => {
+    if (!confirm(`Delete folder "${f.name}" and everything inside?`)) return;
+    try { await api.delete(`/folders/${f._id}`); if (selectedFolder?._id === f._id) setSelectedFolder(null); triggerRefresh(); }
+    catch { alert('Error deleting'); }
+  };
+  const deleteFile = async (f) => {
+    if (!confirm(`Delete file "${f.name}"?`)) return;
+    try { await api.delete(`/files/${f._id}`); if (selectedFile?._id === f._id) setSelectedFile(null); triggerRefresh(); }
+    catch { alert('Error deleting'); }
+  };
+
+  const Breadcrumb = () => (
+    <div className="flex items-center gap-1 px-4 sm:px-6 py-2.5 flex-shrink-0 overflow-x-auto scrollbar-none"
+      style={{ borderBottom: '1.5px solid var(--border)', background: '#fff' }}>
+      {!sidebarOpen && (
+        <button onClick={() => setSidebarOpen(true)} style={{ marginRight: 8, background: 'none', border: 'none', cursor: 'pointer' }}>
+          <Icon name="Menu" size={16} style={{ color: 'var(--ink3)' }} />
+        </button>
+      )}
+      <button onClick={() => setSelectedFolder(null)}
+        className="text-xs hover:underline flex-shrink-0" style={{ color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>Home</button>
+      {selectedFolder && <>
+        <Icon name="ChevronRight" size={11} style={{ color: 'var(--border2)', flexShrink: 0 }} />
+        <button onClick={() => setSelectedFile(null)}
+          className={`text-xs flex-shrink-0 whitespace-nowrap ${selectedFile ? 'hover:underline' : 'font-semibold'}`}
+          style={{ color: selectedFile ? 'var(--ink3)' : 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer' }}>
+          {selectedFolder.icon} {selectedFolder.name}
+        </button>
+      </>}
+      {selectedFile && <>
+        <Icon name="ChevronRight" size={11} style={{ color: 'var(--border2)', flexShrink: 0 }} />
+        <span className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--ink)' }}>{selectedFile.name}</span>
+      </>}
+    </div>
+  );
+
+  const renderModal = () => {
+    if (!modal) return null;
+
+    if (modal.mode === 'lockFolder') {
+      return (
+        <Modal title={`Lock "${modal.item?.name}"`} onClose={() => setModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p className="text-sm" style={{ color: 'var(--ink3)' }}>Set a password to protect this folder.</p>
+            <div>
+              <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Password *</label>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={formPassword}
+                  onChange={e => setFormPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  className="input pr-10" placeholder="Enter a password…" autoFocus />
+                <button onClick={() => setShowPw(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <Icon name={showPw ? 'EyeOff' : 'Eye'} size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formPassword.trim()}
+                className="btn-primary flex items-center gap-2" style={{ background: 'var(--red)', boxShadow: 'none' }}>
+                <Icon name={saving ? 'Loader2' : 'Lock'} size={13} className={saving ? 'animate-spin' : ''} />
+                {saving ? 'Locking…' : 'Lock Folder'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      );
+    }
+
+    if (modal.mode === 'unlockFolder') {
+      return (
+        <Modal title={`Remove Lock from "${modal.item?.name}"`} onClose={() => setModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p className="text-sm" style={{ color: 'var(--ink3)' }}>Enter the current password to permanently remove the lock.</p>
+            <div>
+              <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Current Password *</label>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={formPassword}
+                  onChange={e => setFormPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  className="input pr-10" placeholder="Enter current password…" autoFocus />
+                <button onClick={() => setShowPw(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <Icon name={showPw ? 'EyeOff' : 'Eye'} size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formPassword.trim()} className="btn-primary flex items-center gap-2">
+                <Icon name={saving ? 'Loader2' : 'LockOpen'} size={13} className={saving ? 'animate-spin' : ''} />
+                {saving ? 'Removing…' : 'Remove Lock'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      );
+    }
+
+    const isFolder = ['createFolder','editFolder','createSubfolder'].includes(modal.mode);
+    const isCreate = ['createFolder','createFile','createSubfolder'].includes(modal.mode);
+    const title = modal.mode === 'createFolder' ? 'New Folder' : modal.mode === 'createSubfolder' ? 'New Subfolder' : modal.mode === 'editFolder' ? 'Edit Folder' : modal.mode === 'createFile' ? 'New File' : 'Rename File';
+
+    return (
+      <Modal title={title} onClose={() => setModal(null)}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isFolder && (
+            <div>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Icon</label>
+              <div className="flex flex-wrap gap-2">
+                {ICONS.map(icon => (
+                  <button key={icon} onClick={() => setFormIcon(icon)}
+                    className="w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all hover:scale-105"
+                    style={{ background: formIcon === icon ? 'var(--green-lt)' : 'var(--paper2)', boxShadow: formIcon === icon ? '0 0 0 2px var(--green)' : 'none', border: 'none', cursor: 'pointer' }}>
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Name *</label>
+            <input value={formName} onChange={e => setFormName(e.target.value)}
+              className="input" placeholder={isFolder ? 'Folder name…' : 'File name…'} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+          </div>
+          {isFolder && (
+            <div>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Color</label>
+              <div className="flex gap-2 flex-wrap">
+                {COLORS.map(c => (
+                  <button key={c} onClick={() => setFormColor(c)}
+                    className="w-7 h-7 rounded-full transition-all hover:scale-110"
+                    style={{ background: c, boxShadow: formColor === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : 'none', border: 'none', cursor: 'pointer' }} />
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end pt-1">
+            <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+            <button onClick={handleSave} disabled={saving || !formName.trim()} className="btn-primary">
+              {saving && <Icon name="Loader2" size={13} className="animate-spin" />}
+              {saving ? 'Saving…' : isCreate ? 'Create' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  };
+
+  // File view
+  if (selectedFile) {
+    if (loadingFile) return (
+      <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--paper)' }}>
+        <Icon name="Loader2" size={22} className="animate-spin" style={{ color: 'var(--green)' }} />
+      </div>
+    );
+    return (
+      <div className="flex-1 flex flex-col min-h-0" style={{ background: 'var(--paper)' }}>
+        <Breadcrumb />
+        <div className="px-4 sm:px-6 pt-4 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <h1 className="text-lg font-bold mr-auto" style={{ color: 'var(--ink)' }}>📄 {fullFile?.name || selectedFile.name}</h1>
+            <BtnEdit onClick={() => openEditFile(selectedFile)} />
+            <BtnDelete onClick={() => deleteFile(selectedFile)} />
+          </div>
+        </div>
+        {fullFile && <FileEditor file={fullFile} onUpdate={f => setFullFile(f)} />}
+        {renderModal()}
+      </div>
+    );
+  }
+
+  // Folder view
+  if (selectedFolder) {
+    if (lockedGate) return (
+      <div className="flex-1 flex flex-col min-h-0" style={{ background: 'var(--paper)' }}>
+        <Breadcrumb />
+        <LockGate folder={lockedGate} onUnlocked={handleFolderUnlocked} />
+      </div>
+    );
+    return (
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: 'var(--paper)' }}>
+        <Breadcrumb />
+        <div className="px-4 sm:px-6 py-5 animate-fade-in">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+              <span>{selectedFolder.icon}</span>{selectedFolder.name}
+              {selectedFolder.isLocked && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(220,38,38,0.08)', color: 'var(--red)', border: '1px solid rgba(220,38,38,0.18)' }}>
+                  <Icon name="Lock" size={10} />Locked
+                </span>
+              )}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <BtnCreate label="New File" iconName="FilePlus" onClick={openCreateFile} />
+            <BtnCreate label="New Subfolder" iconName="FolderPlus" onClick={openCreateSubfolder} />
+            <BtnEdit onClick={() => openEditFolder(selectedFolder)} />
+            <BtnLock isLocked={selectedFolder.isLocked} onClick={() => selectedFolder.isLocked ? openUnlockFolder(selectedFolder) : openLockFolder(selectedFolder)} />
+            <BtnDelete onClick={() => deleteFolder(selectedFolder)} />
+          </div>
+
+          {subfolders.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--ink3)' }}>Subfolders</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {subfolders.map(sub => (
+                  <div key={sub._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                    style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative"
+                        style={{ background: `${sub.color || '#6366f1'}18` }}>
+                        {sub.icon || '📁'}
+                        {sub.isLocked && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--red)' }}>
+                            <Icon name="Lock" size={8} style={{ color: '#fff' }} />
+                          </span>
+                        )}
+                      </div>
+                      <button className="font-semibold text-sm text-left flex-1 truncate"
+                        style={{ color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer' }}
+                        onClick={() => setSelectedFolder(sub)}>{sub.name}</button>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                      <button onClick={() => setSelectedFolder(sub)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Folder" size={11} />Open</button>
+                      <button onClick={() => openEditFolder(sub)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Pencil" size={11} />Edit</button>
+                      {sub.isLocked
+                        ? <button onClick={() => openUnlockFolder(sub)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="LockOpen" size={11} />Unlock</button>
+                        : <button onClick={() => openLockFolder(sub)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: '#b45309', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Lock" size={11} />Lock</button>
+                      }
+                      <button onClick={() => deleteFolder(sub)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Trash2" size={11} />Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {subfolders.length > 0 && files.length > 0 && (
+            <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--ink3)' }}>Files</p>
+          )}
+
+          {files.length === 0 && subfolders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+                <Icon name="FileText" size={20} style={{ color: 'var(--ink3)' }} />
+              </div>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>Empty folder</p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={openCreateFile}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
+                  style={{ background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                  <Icon name="FilePlus" size={15} />New File
+                </button>
+                <button onClick={openCreateSubfolder}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
+                  style={{ background: 'var(--paper2)', color: 'var(--ink2)', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
+                  <Icon name="FolderPlus" size={15} />New Subfolder
+                </button>
+              </div>
+            </div>
+          ) : files.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {files.map(file => (
+                <div key={file._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                  style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--green-lt)' }}>
+                      <Icon name="FileText" size={16} style={{ color: 'var(--green)' }} />
+                    </div>
+                    <button className="font-semibold text-sm text-left flex-1 mt-1"
+                      style={{ color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer' }}
+                      onClick={() => setSelectedFile(file)}>{file.name}</button>
+                  </div>
+                  <div className="text-xs mb-3" style={{ color: 'var(--ink3)' }}>
+                    {file.content?.length || 0} block{file.content?.length !== 1 ? 's' : ''} · {new Date(file.updatedAt).toLocaleDateString()}
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button onClick={() => setSelectedFile(file)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="FileText" size={11} />Open</button>
+                    <button onClick={() => openEditFile(file)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Pencil" size={11} />Edit</button>
+                    <button onClick={() => deleteFile(file)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Trash2" size={11} />Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {renderModal()}
+      </div>
+    );
+  }
+
+  // Home screen
+  return (
+    <div className="flex-1 overflow-y-auto" style={{ background: 'var(--paper)' }}>
+      <div className="px-4 sm:px-6 py-5 animate-fade-in">
+        <div className="flex items-center gap-3 mb-1">
+          {!sidebarOpen && (
+            <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <Icon name="Menu" size={20} style={{ color: 'var(--ink3)' }} />
+            </button>
+          )}
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+            <Icon name="BookOpenCheck" size={24} style={{ color: 'var(--green)' }} />StudSave
+          </h1>
+        </div>
+        <p className="text-sm mb-5" style={{ color: 'var(--ink3)' }}>Create a folder to get started. Inside each folder you can create files and subfolders.</p>
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <BtnCreate label="New Folder" iconName="FolderPlus" onClick={openCreateFolder} />
+        </div>
+
+        {folders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+              <Icon name="Folder" size={28} style={{ color: 'var(--ink3)' }} />
+            </div>
+            <p className="text-base font-semibold mb-1" style={{ color: 'var(--ink2)' }}>No folders yet</p>
+            <p className="text-sm mb-4" style={{ color: 'var(--ink3)' }}>Create your first folder to start organising</p>
+            <button onClick={openCreateFolder}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90"
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              <Icon name="FolderPlus" size={16} />Create Folder
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {folders.map(folder => (
+              <div key={folder._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative"
+                    style={{ background: `${folder.color}18` }}>
+                    {folder.icon || '📁'}
+                    {folder.isLocked && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--red)' }}>
+                        <Icon name="Lock" size={8} style={{ color: '#fff' }} />
+                      </span>
+                    )}
+                  </div>
+                  <button className="font-semibold text-sm text-left flex-1 truncate"
+                    style={{ color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    onClick={() => setSelectedFolder(folder)}>{folder.name}</button>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <button onClick={() => setSelectedFolder(folder)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Folder" size={11} />Open</button>
+                  <button onClick={() => openEditFolder(folder)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Pencil" size={11} />Edit</button>
+                  {folder.isLocked
+                    ? <button onClick={() => openUnlockFolder(folder)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="LockOpen" size={11} />Unlock</button>
+                    : <button onClick={() => openLockFolder(folder)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: '#b45309', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Lock" size={11} />Lock</button>
+                  }
+                  <button onClick={() => deleteFolder(folder)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="Trash2" size={11} />Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {renderModal()}
+    </div>
+  );
+}
+
+// ── App root ──────────────────────────────────────────────────────────────────
+function App() {
+  const { sidebarOpen } = useContext(AppContext);
+  return (
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: 'var(--paper)' }}>
+      <Sidebar />
+      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <MainContent />
+      </main>
+    </div>
+  );
+}
+
+function Root() {
+  return (
+    <AppProvider>
+      <App />
+    </AppProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+</script>
+</body>
+</html>
