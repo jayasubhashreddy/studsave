@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Folder {
+  parentFolderId?: string | null;
+  isLocked: boolean;
+  lockPassword?: string | null;
   _id: string;
   name: string;
   icon: string;

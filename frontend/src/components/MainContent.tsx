@@ -2,8 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   FolderPlus, FilePlus, Pencil, Trash2, Loader2, FileText,
   Folder as FolderIcon, BookOpenCheck, ChevronRight, Menu,
-  Plus, Code2, Image, CheckCircle, AlertCircle, Clock, X,
-  ChevronUp, ChevronDown
+  Code2, Image, CheckCircle, AlertCircle, Clock, X,
+  ChevronUp, ChevronDown, Lock, LockOpen, Eye, EyeOff,
+  ShieldCheck
 } from 'lucide-react';
 import { useApp, Folder, FileItem } from '../context/AppContext';
 import api from '../utils/api';
@@ -48,8 +49,20 @@ const BtnDelete = ({ onClick }: { onClick: () => void }) => (
     <Trash2 size={13} />Delete
   </button>
 );
+const BtnLock = ({ isLocked, onClick }: { isLocked: boolean; onClick: () => void }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{
+      background: isLocked ? 'rgba(220,38,38,0.08)' : 'rgba(251,191,36,0.12)',
+      color: isLocked ? 'var(--red)' : '#b45309',
+      border: `1px solid ${isLocked ? 'rgba(220,38,38,0.2)' : 'rgba(251,191,36,0.3)'}`
+    }}>
+    {isLocked ? <LockOpen size={13} /> : <Lock size={13} />}
+    {isLocked ? 'Unlock' : 'Lock'}
+  </button>
+);
 
-// ── File editor (embedded, no separate component import needed) ──
+// ── Save badge ────────────────────────────────────────────────────
 const SaveBadge = ({ status }: { status: string }) => {
   const map: Record<string, { icon: React.ReactNode; text: string; color: string }> = {
     saving: { icon: <Loader2 size={11} className="animate-spin" />, text: 'Saving…', color: 'var(--ink3)' },
@@ -60,6 +73,7 @@ const SaveBadge = ({ status }: { status: string }) => {
   return <span className="flex items-center gap-1 text-xs font-medium" style={{ color: c.color }}>{c.icon}{c.text}</span>;
 };
 
+// ── File Editor ───────────────────────────────────────────────────
 function FileEditor({ file, onUpdate }: { file: FileItem; onUpdate: (f: FileItem) => void }) {
   const [content, setContent] = useState<ContentBlock[]>(file.content || []);
   const [previewing, setPreviewing] = useState<{ [k: string]: boolean }>({});
@@ -94,7 +108,6 @@ function FileEditor({ file, onUpdate }: { file: FileItem; onUpdate: (f: FileItem
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 pb-6">
-        {/* Add block buttons */}
         <div className="flex flex-wrap gap-2 mb-5">
           {[{ type: 'text' as ContentType, icon: FileText, label: 'Text' },
             { type: 'code' as ContentType, icon: Code2, label: 'Code' },
@@ -188,6 +201,63 @@ function FileEditor({ file, onUpdate }: { file: FileItem; onUpdate: (f: FileItem
   );
 }
 
+// ── Lock Gate (shown when a locked folder is opened) ─────────────
+function LockGate({ folder, onUnlocked }: { folder: Folder; onUnlocked: () => void }) {
+  const [pw, setPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const verify = async () => {
+    if (!pw.trim()) return;
+    setLoading(true); setErr('');
+    try {
+      await api.post(`/folders/${folder._id}/verify`, { password: pw });
+      onUnlocked();
+    } catch {
+      setErr('Wrong password. Try again.');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center" style={{ background: 'var(--paper)' }}>
+      <div className="w-full max-w-sm mx-auto p-8 rounded-3xl text-center"
+        style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.18)' }}>
+          <Lock size={28} style={{ color: 'var(--red)' }} />
+        </div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--ink)' }}>Locked Folder</h2>
+        <p className="text-sm mb-6" style={{ color: 'var(--ink3)' }}>
+          <span style={{ fontWeight: 600 }}>{folder.icon} {folder.name}</span> is protected. Enter the password to open it.
+        </p>
+        <div className="relative mb-3">
+          <input
+            type={showPw ? 'text' : 'password'}
+            value={pw}
+            onChange={e => { setPw(e.target.value); setErr(''); }}
+            onKeyDown={e => e.key === 'Enter' && verify()}
+            className="input pr-10 text-sm"
+            placeholder="Enter password…"
+            autoFocus
+          />
+          <button onClick={() => setShowPw(s => !s)}
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--ink3)' }}>
+            {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+        {err && <p className="text-xs mb-3" style={{ color: 'var(--red)' }}>{err}</p>}
+        <button onClick={verify} disabled={loading || !pw.trim()}
+          className="btn-primary w-full flex items-center justify-center gap-2">
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+          {loading ? 'Verifying…' : 'Open Folder'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────
 export default function MainContent() {
   const {
@@ -198,27 +268,45 @@ export default function MainContent() {
   } = useApp();
 
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [files,   setFiles]   = useState<FileItem[]>([]);
+  const [subfolders, setSubfolders] = useState<Folder[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [fullFile, setFullFile] = useState<FileItem | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
 
+  // Lock gate state: null = not locked / already verified, folderId = waiting for password
+  const [lockedGate, setLockedGate] = useState<Folder | null>(null);
+  // Track which folder IDs have been unlocked this session
+  const [sessionUnlocked, setSessionUnlocked] = useState<Set<string>>(new Set());
+
   // Modal state
-  const [modal, setModal] = useState<{ mode: 'createFolder' | 'editFolder' | 'createFile' | 'editFile'; item?: any } | null>(null);
+  type ModalMode = 'createFolder' | 'editFolder' | 'createFile' | 'editFile' | 'createSubfolder' | 'lockFolder' | 'unlockFolder';
+  const [modal, setModal] = useState<{ mode: ModalMode; item?: any } | null>(null);
   const [formName, setFormName] = useState('');
   const [formIcon, setFormIcon] = useState('📁');
   const [formColor, setFormColor] = useState('#6366f1');
+  const [formPassword, setFormPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Load folders
+  // Load top-level folders
   useEffect(() => {
     api.get('/folders').then(r => setFolders(r.data)).catch(() => {});
   }, [refreshTrigger]);
 
-  // Load files when folder selected
+  // When a folder is selected, check lock then load subfolders + files
   useEffect(() => {
-    if (!selectedFolder) { setFiles([]); return; }
+    if (!selectedFolder) { setSubfolders([]); setFiles([]); setLockedGate(null); return; }
+
+    // If locked and not yet unlocked this session, show gate
+    if (selectedFolder.isLocked && !sessionUnlocked.has(selectedFolder._id)) {
+      setLockedGate(selectedFolder);
+      return;
+    }
+
+    setLockedGate(null);
+    api.get(`/folders/${selectedFolder._id}/subfolders`).then(r => setSubfolders(r.data)).catch(() => {});
     api.get(`/files/folder/${selectedFolder._id}`).then(r => setFiles(r.data)).catch(() => {});
-  }, [selectedFolder, refreshTrigger]);
+  }, [selectedFolder, refreshTrigger, sessionUnlocked]);
 
   // Load full file content
   useEffect(() => {
@@ -227,30 +315,66 @@ export default function MainContent() {
     api.get(`/files/${selectedFile._id}`).then(r => setFullFile(r.data)).catch(() => {}).finally(() => setLoadingFile(false));
   }, [selectedFile?._id]);
 
+  const handleFolderUnlocked = () => {
+    if (!selectedFolder) return;
+    setSessionUnlocked(s => new Set([...s, selectedFolder._id]));
+    setLockedGate(null);
+  };
+
   // ── Modal open helpers ───────────────────────────────────────
   const openCreateFolder = () => { setFormName(''); setFormIcon('📁'); setFormColor('#6366f1'); setModal({ mode: 'createFolder' }); };
   const openEditFolder   = (f: Folder) => { setFormName(f.name); setFormIcon(f.icon || '📁'); setFormColor(f.color || '#6366f1'); setModal({ mode: 'editFolder', item: f }); };
   const openCreateFile   = () => { setFormName(''); setModal({ mode: 'createFile' }); };
   const openEditFile     = (f: FileItem) => { setFormName(f.name); setModal({ mode: 'editFile', item: f }); };
+  const openCreateSubfolder = () => { setFormName(''); setFormIcon('📁'); setFormColor('#6366f1'); setModal({ mode: 'createSubfolder' }); };
+  const openLockFolder  = (f: Folder) => { setFormPassword(''); setShowPw(false); setModal({ mode: 'lockFolder', item: f }); };
+  const openUnlockFolder = (f: Folder) => { setFormPassword(''); setShowPw(false); setModal({ mode: 'unlockFolder', item: f }); };
 
   // ── Save handler ─────────────────────────────────────────────
   const handleSave = async () => {
-    if (!formName.trim()) return;
     setSaving(true);
     try {
       if (modal?.mode === 'createFolder') {
+        if (!formName.trim()) return;
         const r = await api.post('/folders', { name: formName, icon: formIcon, color: formColor });
         setSelectedFolder(r.data);
+      } else if (modal?.mode === 'createSubfolder') {
+        if (!formName.trim() || !selectedFolder) return;
+        const r = await api.post('/folders', { name: formName, icon: formIcon, color: formColor, parentFolderId: selectedFolder._id });
+        // Open the newly created subfolder
+        setSelectedFolder(r.data);
       } else if (modal?.mode === 'editFolder') {
+        if (!formName.trim()) return;
         await api.put(`/folders/${modal.item._id}`, { name: formName, icon: formIcon, color: formColor });
         if (selectedFolder?._id === modal.item._id) setSelectedFolder({ ...selectedFolder, name: formName, icon: formIcon, color: formColor });
       } else if (modal?.mode === 'createFile') {
-        if (!selectedFolder) return;
+        if (!formName.trim() || !selectedFolder) return;
         const r = await api.post('/files', { name: formName, folderId: selectedFolder._id });
         setSelectedFile(r.data);
       } else if (modal?.mode === 'editFile') {
+        if (!formName.trim()) return;
         await api.put(`/files/${modal.item._id}`, { name: formName });
         if (selectedFile?._id === modal.item._id) setSelectedFile({ ...selectedFile, name: formName });
+      } else if (modal?.mode === 'lockFolder') {
+        if (!formPassword.trim()) { alert('Enter a password'); setSaving(false); return; }
+        await api.post(`/folders/${modal.item._id}/lock`, { password: formPassword });
+        // Update local state
+        const updated = { ...modal.item, isLocked: true };
+        if (selectedFolder?._id === modal.item._id) setSelectedFolder(updated);
+        setFolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+        setSubfolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+      } else if (modal?.mode === 'unlockFolder') {
+        try {
+          await api.post(`/folders/${modal.item._id}/unlock`, { password: formPassword });
+          const updated = { ...modal.item, isLocked: false, lockPassword: null };
+          if (selectedFolder?._id === modal.item._id) setSelectedFolder(updated);
+          setFolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+          setSubfolders(f => f.map(x => x._id === modal.item._id ? updated : x));
+          // Remove from session unlocked too since it's fully unlocked now
+          setSessionUnlocked(s => { const n = new Set(s); n.delete(modal.item._id); return n; });
+        } catch {
+          alert('Wrong password'); setSaving(false); return;
+        }
       }
       setModal(null);
       triggerRefresh();
@@ -260,7 +384,7 @@ export default function MainContent() {
 
   // ── Delete handlers ──────────────────────────────────────────
   const deleteFolder = async (f: Folder) => {
-    if (!confirm(`Delete folder "${f.name}" and all files inside?`)) return;
+    if (!confirm(`Delete folder "${f.name}" and everything inside?`)) return;
     try {
       await api.delete(`/folders/${f._id}`);
       if (selectedFolder?._id === f._id) setSelectedFolder(null);
@@ -327,6 +451,16 @@ export default function MainContent() {
 
   // ── Folder view ──────────────────────────────────────────────
   if (selectedFolder) {
+    // Show lock gate if locked
+    if (lockedGate) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0" style={{ background: 'var(--paper)' }}>
+          <Breadcrumb />
+          <LockGate folder={lockedGate} onUnlocked={handleFolderUnlocked} />
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: 'var(--paper)' }}>
         <Breadcrumb />
@@ -334,31 +468,101 @@ export default function MainContent() {
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
               <span>{selectedFolder.icon}</span>{selectedFolder.name}
+              {selectedFolder.isLocked && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(220,38,38,0.08)', color: 'var(--red)', border: '1px solid rgba(220,38,38,0.18)' }}>
+                  <Lock size={10} />Locked
+                </span>
+              )}
             </h1>
           </div>
 
-          {/* ── Action buttons on main page ── */}
+          {/* ── Action buttons ── */}
           <div className="flex flex-wrap items-center gap-2 mb-6">
             <BtnCreate label="New File" icon={FilePlus} onClick={openCreateFile} />
+            <BtnCreate label="New Subfolder" icon={FolderPlus} onClick={openCreateSubfolder} />
             <BtnEdit onClick={() => openEditFolder(selectedFolder)} />
+            {selectedFolder.isLocked
+              ? <BtnLock isLocked={true} onClick={() => openUnlockFolder(selectedFolder)} />
+              : <BtnLock isLocked={false} onClick={() => openLockFolder(selectedFolder)} />
+            }
             <BtnDelete onClick={() => deleteFolder(selectedFolder)} />
           </div>
 
-          {/* Files grid */}
-          {files.length === 0 ? (
+          {/* ── Subfolders ── */}
+          {subfolders.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--ink3)' }}>Subfolders</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {subfolders.map(sub => (
+                  <div key={sub._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                    style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative"
+                        style={{ background: `${sub.color || '#6366f1'}18` }}>
+                        {sub.icon || '📁'}
+                        {sub.isLocked && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+                            style={{ background: 'var(--red)' }}>
+                            <Lock size={8} color="#fff" />
+                          </span>
+                        )}
+                      </div>
+                      <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors flex-1 truncate"
+                        style={{ color: 'var(--ink)' }} onClick={() => setSelectedFolder(sub)}>
+                        {sub.name}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                      <button onClick={() => setSelectedFolder(sub)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
+                        style={{ color: 'var(--green)' }}><FolderIcon size={11} />Open</button>
+                      <button onClick={() => openEditFolder(sub)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
+                        style={{ color: '#6366f1' }}><Pencil size={11} />Edit</button>
+                      {sub.isLocked
+                        ? <button onClick={() => openUnlockFolder(sub)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
+                            style={{ color: 'var(--red)' }}><LockOpen size={11} />Unlock</button>
+                        : <button onClick={() => openLockFolder(sub)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-yellow-50 transition-colors"
+                            style={{ color: '#b45309' }}><Lock size={11} />Lock</button>
+                      }
+                      <button onClick={() => deleteFolder(sub)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
+                        style={{ color: 'var(--red)' }}><Trash2 size={11} />Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Files ── */}
+          {subfolders.length > 0 && files.length > 0 && (
+            <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--ink3)' }}>Files</p>
+          )}
+          {files.length === 0 && subfolders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
                 style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
                 <FileText size={20} style={{ color: 'var(--ink3)' }} />
               </div>
-              <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>No files yet</p>
-              <button onClick={openCreateFile}
-                className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
-                style={{ background: 'var(--green)', color: '#fff' }}>
-                <FilePlus size={15} />New File
-              </button>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>Empty folder</p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={openCreateFile}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
+                  style={{ background: 'var(--green)', color: '#fff' }}>
+                  <FilePlus size={15} />New File
+                </button>
+                <button onClick={openCreateSubfolder}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
+                  style={{ background: 'var(--paper2)', color: 'var(--ink2)', border: '1.5px solid var(--border)' }}>
+                  <FolderPlus size={15} />New Subfolder
+                </button>
+              </div>
             </div>
-          ) : (
+          ) : files.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {files.map(file => (
                 <div key={file._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
@@ -376,7 +580,6 @@ export default function MainContent() {
                   <div className="text-xs mb-3" style={{ color: 'var(--ink3)' }}>
                     {file.content?.length || 0} block{file.content?.length !== 1 ? 's' : ''} · {new Date(file.updatedAt).toLocaleDateString()}
                   </div>
-                  {/* Edit & Delete on the card itself — main page */}
                   <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                     <button onClick={() => setSelectedFile(file)}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
@@ -391,7 +594,7 @@ export default function MainContent() {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
         {renderModal()}
       </div>
@@ -402,7 +605,6 @@ export default function MainContent() {
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: 'var(--paper)' }}>
       <div className="px-4 sm:px-6 py-5 animate-fade-in">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-1">
           {!sidebarOpen && (
             <button onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
@@ -414,15 +616,13 @@ export default function MainContent() {
           </h1>
         </div>
         <p className="text-sm mb-5" style={{ color: 'var(--ink3)' }}>
-          Create a folder to get started. Inside each folder you can create files.
+          Create a folder to get started. Inside each folder you can create files and subfolders.
         </p>
 
-        {/* ── Action buttons on main page ── */}
         <div className="flex flex-wrap items-center gap-2 mb-6">
           <BtnCreate label="New Folder" icon={FolderPlus} onClick={openCreateFolder} />
         </div>
 
-        {/* Folders grid */}
         {folders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
@@ -443,16 +643,21 @@ export default function MainContent() {
               <div key={folder._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
                 style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative"
                     style={{ background: `${folder.color}18` }}>
                     {folder.icon || '📁'}
+                    {folder.isLocked && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+                        style={{ background: 'var(--red)' }}>
+                        <Lock size={8} color="#fff" />
+                      </span>
+                    )}
                   </div>
                   <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors flex-1 truncate"
                     style={{ color: 'var(--ink)' }} onClick={() => setSelectedFolder(folder)}>
                     {folder.name}
                   </button>
                 </div>
-                {/* Edit & Delete on the card — main page only */}
                 <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                   <button onClick={() => setSelectedFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
@@ -460,6 +665,14 @@ export default function MainContent() {
                   <button onClick={() => openEditFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
                     style={{ color: '#6366f1' }}><Pencil size={11} />Edit</button>
+                  {folder.isLocked
+                    ? <button onClick={() => openUnlockFolder(folder)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
+                        style={{ color: 'var(--red)' }}><LockOpen size={11} />Unlock</button>
+                    : <button onClick={() => openLockFolder(folder)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-yellow-50 transition-colors"
+                        style={{ color: '#b45309' }}><Lock size={11} />Lock</button>
+                  }
                   <button onClick={() => deleteFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
                     style={{ color: 'var(--red)' }}><Trash2 size={11} />Delete</button>
@@ -476,9 +689,82 @@ export default function MainContent() {
   // ── Modal renderer ───────────────────────────────────────────
   function renderModal() {
     if (!modal) return null;
-    const isFolder = modal.mode === 'createFolder' || modal.mode === 'editFolder';
-    const isCreate = modal.mode === 'createFolder' || modal.mode === 'createFile';
-    const title = isCreate ? (isFolder ? 'New Folder' : 'New File') : (isFolder ? 'Edit Folder' : 'Rename File');
+
+    // Lock modal
+    if (modal.mode === 'lockFolder') {
+      return (
+        <Modal title={`Lock "${modal.item?.name}"`} onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: 'var(--ink3)' }}>
+              Set a password to protect this folder. Anyone opening it will need to enter the password.
+            </p>
+            <div>
+              <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Password *</label>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={formPassword}
+                  onChange={e => setFormPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  className="input pr-10" placeholder="Enter a password…" autoFocus />
+                <button onClick={() => setShowPw(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink3)' }}>
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formPassword.trim()}
+                className="btn-primary flex items-center gap-2"
+                style={{ background: 'var(--red)', borderColor: 'var(--red)' }}>
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Lock size={13} />}
+                {saving ? 'Locking…' : 'Lock Folder'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      );
+    }
+
+    // Unlock modal
+    if (modal.mode === 'unlockFolder') {
+      return (
+        <Modal title={`Remove Lock from "${modal.item?.name}"`} onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: 'var(--ink3)' }}>
+              Enter the current password to permanently remove the lock from this folder.
+            </p>
+            <div>
+              <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Current Password *</label>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={formPassword}
+                  onChange={e => setFormPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  className="input pr-10" placeholder="Enter current password…" autoFocus />
+                <button onClick={() => setShowPw(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink3)' }}>
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formPassword.trim()} className="btn-primary flex items-center gap-2">
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <LockOpen size={13} />}
+                {saving ? 'Removing…' : 'Remove Lock'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      );
+    }
+
+    const isFolder = modal.mode === 'createFolder' || modal.mode === 'editFolder' || modal.mode === 'createSubfolder';
+    const isCreate = modal.mode === 'createFolder' || modal.mode === 'createFile' || modal.mode === 'createSubfolder';
+    const title =
+      modal.mode === 'createFolder' ? 'New Folder' :
+      modal.mode === 'createSubfolder' ? 'New Subfolder' :
+      modal.mode === 'editFolder' ? 'Edit Folder' :
+      modal.mode === 'createFile' ? 'New File' : 'Rename File';
 
     return (
       <Modal title={title} onClose={() => setModal(null)}>
