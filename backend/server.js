@@ -38,4 +38,26 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 StudSave running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 StudSave running on port ${PORT}`);
+
+  // ── Keep-alive ping for Render free tier ──────────────────────
+  // Render shuts down free servers after ~15 min of inactivity.
+  // This self-ping every 14 minutes prevents that.
+  const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  const PING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+  setInterval(async () => {
+    try {
+      const http  = RENDER_URL.startsWith('https') ? require('https') : require('http');
+      http.get(`${RENDER_URL}/api/health`, (res) => {
+        console.log(`🏓 Keep-alive ping sent → status ${res.statusCode}`);
+      }).on('error', (err) => {
+        console.warn(`⚠️  Keep-alive ping failed: ${err.message}`);
+      });
+    } catch (err) {
+      console.warn(`⚠️  Keep-alive ping error: ${err.message}`);
+    }
+  }, PING_INTERVAL_MS);
+  // ─────────────────────────────────────────────────────────────
+});
