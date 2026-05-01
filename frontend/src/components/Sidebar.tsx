@@ -143,8 +143,7 @@ export default function Sidebar() {
         <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {academics.length===0&&(
             <div className="text-center py-8 text-xs" style={{color:'rgba(255,255,255,0.25)'}}>
-              <GraduationCap size={22} className="mx-auto mb-2 opacity-30"/>No academics yet
-              <div className="mt-1 opacity-60">Use the main area to create one</div>
+              <GraduationCap size={22} className="mx-auto mb-2 opacity-30"/>No folders yet
             </div>
           )}
           {academics.map(academic=>(

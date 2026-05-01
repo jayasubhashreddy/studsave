@@ -115,7 +115,7 @@ export default function MainContent() {
             ...formData,
             subjectId:  pt==='subject'  ? m.parentId : null,
             semesterId: pt==='semester' ? m.parentId : (pt==='subject' ? (subjects.find(s=>s._id===m.parentId)||selectedSubject)?.semesterId : null),
-            academicId: selectedAcademic?._id
+            academicId: (pt==='root') ? null : selectedAcademic?._id
           });
         }
       }
@@ -405,7 +405,7 @@ export default function MainContent() {
           </div>
           {/* ✅ New File available right after first folder (academic = 1st folder) */}
           <ActionRow>
-            <BtnCreate label="New Semester" icon={FolderPlus} onClick={()=>openModal('semester', selectedAcademic._id)}/>
+            <BtnCreate label="New Folder" icon={FolderPlus} onClick={()=>openModal('semester', selectedAcademic._id)}/>
             <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', selectedAcademic._id, null, 'academic')}/>
             <BtnEdit onClick={()=>openModal('academic', undefined, selectedAcademic)}/>
             <BtnDelete onClick={()=>handleDelete('academic', selectedAcademic._id)}/>
@@ -414,7 +414,7 @@ export default function MainContent() {
           {/* Semesters */}
           {semesters.length>0&&(
             <div className="mb-6">
-              <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Semesters</h2>
+              <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Folders</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {semesters.map(semester=>(
                   <div key={semester._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
@@ -466,11 +466,12 @@ export default function MainContent() {
             <BookOpenCheck size={24} style={{color:'var(--green)'}}/>Welcome to StudSave
           </h1>
           <p className="text-sm mt-1" style={{color:'var(--ink3)'}}>
-            {sidebarOpen ? 'Select from the sidebar or create a new academic year below.' : 'Tap ☰ to open the sidebar, or create one below.'}
+            Create a folder or file to get started.
           </p>
         </div>
         <ActionRow>
-          <BtnCreate label="New Academic Year" icon={GraduationCap} onClick={()=>openModal('academic')}/>
+          <BtnCreate label="New Folder" icon={GraduationCap} onClick={()=>openModal('academic')}/>
+          <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', undefined, null, 'root')}/>
         </ActionRow>
         {academics.length>0&&(
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
@@ -508,7 +509,7 @@ export default function MainContent() {
     return (
       <>
         {modal&&(
-          <Modal title={`${modal.item?'Edit':'New'} ${modal.type.charAt(0).toUpperCase()+modal.type.slice(1)}`} onClose={()=>setModal(null)}>
+          <Modal title={`${modal.item?'Edit':'New'} ${ modal.type==='unit' ? 'File' : modal.type==='academic'||modal.type==='semester'||modal.type==='subject' ? 'Folder' : modal.type.charAt(0).toUpperCase()+modal.type.slice(1) }`} onClose={()=>setModal(null)}>
             <div className="space-y-4">
               {(modal.type==='academic'||modal.type==='subject')&&(
                 <div>
@@ -527,7 +528,7 @@ export default function MainContent() {
               <div>
                 <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{color:'var(--ink3)'}}>Name *</label>
                 <input value={formData.name} onChange={e=>setFormData(p=>({...p,name:e.target.value}))}
-                  className="input" placeholder={`${modal.type} name…`} autoFocus
+                  className="input" placeholder={`${modal.type==='unit'?'File':modal.type==='academic'||modal.type==='semester'||modal.type==='subject'?'Folder':modal.type} name…`} autoFocus
                   onKeyDown={e=>{if(e.key==='Enter')handleSave();}}/>
               </div>
               <div>
