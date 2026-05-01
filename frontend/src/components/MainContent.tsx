@@ -1,603 +1,529 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  BookOpen, FileText, Loader2, ChevronRight, BookOpenCheck,
-  Pencil, Trash2, FolderPlus, FilePlus, GraduationCap, Lock, Unlock, LockKeyhole, Eye, EyeOff
+  FolderPlus, FilePlus, Pencil, Trash2, Loader2, FileText,
+  Folder as FolderIcon, BookOpenCheck, ChevronRight, Menu,
+  Plus, Code2, Image, CheckCircle, AlertCircle, Clock, X,
+  ChevronUp, ChevronDown
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import { Academic, Semester, Subject, Unit } from '../utils/types';
+import { useApp, Folder, FileItem } from '../context/AppContext';
 import api from '../utils/api';
-import UnitEditor from './UnitEditor';
 import Modal from './Modal';
+import { useAutoSave } from '../hooks/useAutoSave';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-c';
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-css';
+import 'prismjs/themes/prism-tomorrow.css';
 
-interface FormData { name: string; description: string; icon?: string; color?: string; }
+// ── Types ────────────────────────────────────────────────────────
+type ContentType = 'text' | 'code' | 'image';
+interface ContentBlock { _id?: string; type: ContentType; title: string; value: string; language?: string; order: number; }
+const LANGS = ['javascript','typescript','python','java','c','cpp','css','html','sql','bash','json','text'];
+const ICONS  = ['📁','📚','🔬','💻','📐','🧬','⚗️','🎨','📊','🏛️','🎓','📝','🗂️','💡'];
+const COLORS = ['#6366f1','#2d6a4f','#1d4ed8','#7c3aed','#b45309','#dc2626','#0891b2','#db2777'];
 
-const unlockedSet = new Set<string>();
-const ICONS  = ['🎓','📚','🔬','💻','📐','🧬','⚗️','🎨','📊','🏛️'];
-const COLORS = ['#2d6a4f','#1d4ed8','#7c3aed','#b45309','#dc2626','#0891b2','#db2777','#059669'];
+// ── Small reusable pieces ────────────────────────────────────────
+const BtnCreate = ({ label, icon: Icon, onClick }: { label: string; icon: any; onClick: () => void }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(45,106,79,0.12)', color: 'var(--green)', border: '1px solid rgba(45,106,79,0.25)' }}>
+    <Icon size={13} />{label}
+  </button>
+);
+const BtnEdit = ({ onClick }: { onClick: () => void }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(100,100,255,0.08)', color: '#6366f1', border: '1px solid rgba(100,100,255,0.2)' }}>
+    <Pencil size={13} />Edit
+  </button>
+);
+const BtnDelete = ({ onClick }: { onClick: () => void }) => (
+  <button onClick={onClick}
+    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+    style={{ background: 'rgba(220,38,38,0.08)', color: 'var(--red)', border: '1px solid rgba(220,38,38,0.18)' }}>
+    <Trash2 size={13} />Delete
+  </button>
+);
 
-export default function MainContent() {
-  const {
-    selectedAcademic, selectedSemester, selectedSubject, selectedUnit,
-    setSelectedAcademic, setSelectedSemester, setSelectedSubject, setSelectedUnit,
-    sidebarOpen, refreshTrigger, triggerRefresh
-  } = useApp();
+// ── File editor (embedded, no separate component import needed) ──
+const SaveBadge = ({ status }: { status: string }) => {
+  const map: Record<string, { icon: React.ReactNode; text: string; color: string }> = {
+    saving: { icon: <Loader2 size={11} className="animate-spin" />, text: 'Saving…', color: 'var(--ink3)' },
+    saved:  { icon: <CheckCircle size={11} />, text: 'Saved', color: 'var(--green)' },
+    error:  { icon: <AlertCircle size={11} />, text: 'Error',  color: 'var(--red)' },
+  };
+  const c = map[status]; if (!c) return null;
+  return <span className="flex items-center gap-1 text-xs font-medium" style={{ color: c.color }}>{c.icon}{c.text}</span>;
+};
 
-  const [units,       setUnits]       = useState<Unit[]>([]);
-  const [loadingUnit, setLoadingUnit] = useState(false);
-  const [fullUnit,    setFullUnit]    = useState<Unit | null>(null);
+function FileEditor({ file, onUpdate }: { file: FileItem; onUpdate: (f: FileItem) => void }) {
+  const [content, setContent] = useState<ContentBlock[]>(file.content || []);
+  const [previewing, setPreviewing] = useState<{ [k: string]: boolean }>({});
+  const { save, status } = useAutoSave(file._id);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const [imgTarget, setImgTarget] = useState<number | null>(null);
 
-  const [academics, setAcademics] = useState<Academic[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [subjects,  setSubjectsL] = useState<Subject[]>([]);
+  useEffect(() => { setContent(file.content || []); setPreviewing({}); }, [file._id]);
+  useEffect(() => { Prism.highlightAll(); }, [content, previewing]);
 
-  // Modal state
-  const [modal,    setModal]    = useState<{type:string;parentId?:string;parentType?:string;item?:any}|null>(null);
-  const [formData, setFormData] = useState<FormData>({name:'',description:'',icon:'🎓',color:'#2d6a4f'});
-  const [saving,   setSaving]   = useState(false);
-
-  // Lock modal
-  const [lockModal,  setLockModal]  = useState<{subject:Subject;mode:'set'|'remove'}|null>(null);
-  const [pin,        setPin]        = useState('');
-  const [pinError,   setPinError]   = useState('');
-  const [showPin,    setShowPin]    = useState(false);
-  const [lockSaving, setLockSaving] = useState(false);
-  const [unlockedSubjects, setUnlockedSubjects] = useState<Set<string>>(new Set(unlockedSet));
-
-  // Load academics
-  useEffect(() => {
-    api.get('/academics').then(r => setAcademics(r.data)).catch(() => {});
-  }, [refreshTrigger]);
-
-  // Load semesters when academic selected
-  useEffect(() => {
-    if (!selectedAcademic) return;
-    api.get(`/semesters/academic/${selectedAcademic._id}`).then(r => setSemesters(r.data)).catch(() => {});
-  }, [selectedAcademic, refreshTrigger]);
-
-  // Load subjects when semester selected
-  useEffect(() => {
-    if (!selectedSemester) return;
-    api.get(`/subjects/semester/${selectedSemester._id}`).then(r => setSubjectsL(r.data)).catch(() => {});
-  }, [selectedSemester, refreshTrigger]);
-
-  // Load units depending on what is selected
-  useEffect(() => {
-    if (selectedSubject) {
-      api.get(`/units/subject/${selectedSubject._id}`).then(r => setUnits(r.data)).catch(() => {});
-    } else if (selectedSemester) {
-      api.get(`/units/semester/${selectedSemester._id}`).then(r => setUnits(r.data)).catch(() => {});
-    } else if (selectedAcademic) {
-      api.get(`/units/academic/${selectedAcademic._id}`).then(r => setUnits(r.data)).catch(() => {});
-    } else {
-      setUnits([]);
-    }
-  }, [selectedSubject, selectedSemester, selectedAcademic, refreshTrigger]);
-
-  // Load full unit content
-  useEffect(() => {
-    if (!selectedUnit) { setFullUnit(null); return; }
-    setFullUnit(null); setLoadingUnit(true);
-    api.get(`/units/${selectedUnit._id}`).then(r => setFullUnit(r.data)).catch(() => {}).finally(() => setLoadingUnit(false));
-  }, [selectedUnit?._id]);
-
-  const BADGE:Record<string,string> = { pending:'badge-progress-pending','in-progress':'badge-progress-in-progress',completed:'badge-progress-completed' };
-  const LABEL:Record<string,string> = { pending:'Pending','in-progress':'In Progress',completed:'Completed' };
-
-  // ── Modal helpers ───────────────────────────────────────────────
-  const openModal = (type:string, parentId?:string, item?:any, parentType?:string) => {
-    setModal({type, parentId, item, parentType});
-    setFormData({name:item?.name||'',description:item?.description||'',icon:item?.icon||'🎓',color:item?.color||'#2d6a4f'});
+  const updateContent = useCallback((nc: ContentBlock[]) => { setContent(nc); save(nc); }, [save]);
+  const addBlock = (type: ContentType) => {
+    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    updateContent([...content, { type, title: '', value: '', language: 'javascript', order: content.length, _id: key }]);
+  };
+  const updateBlock = (i: number, f: keyof ContentBlock, v: string) =>
+    updateContent(content.map((b, idx) => idx === i ? { ...b, [f]: v } : b));
+  const removeBlock = (i: number) => updateContent(content.filter((_, idx) => idx !== i));
+  const moveBlock = (i: number, d: -1 | 1) => {
+    const n = [...content]; const t = i + d;
+    if (t < 0 || t >= n.length) return;
+    [n[i], n[t]] = [n[t], n[i]];
+    updateContent(n);
+  };
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f || imgTarget === null) return;
+    const reader = new FileReader();
+    reader.onload = ev => { updateBlock(imgTarget, 'value', ev.target?.result as string); setImgTarget(null); };
+    reader.readAsDataURL(f);
   };
 
-  const handleSave = async () => {
-    if(!formData.name.trim()) return;
-    setSaving(true);
-    try {
-      const m = modal!;
-      if (m.type==='academic') {
-        m.item ? await api.put(`/academics/${m.item._id}`, formData)
-               : await api.post('/academics', formData);
-      } else if (m.type==='semester') {
-        m.item ? await api.put(`/semesters/${m.item._id}`, formData)
-               : await api.post('/semesters', {...formData, academicId: m.parentId});
-      } else if (m.type==='subject') {
-        if (m.item) { await api.put(`/subjects/${m.item._id}`, formData); }
-        else {
-          const sem = semesters.find(s=>s._id===m.parentId) || selectedSemester;
-          await api.post('/subjects', {...formData, semesterId: m.parentId, academicId: sem?.academicId || selectedAcademic?._id});
-        }
-      } else if (m.type==='unit') {
-        if (m.item) { await api.put(`/units/${m.item._id}`, formData); }
-        else {
-          // parentType tells us what level the file is being created at
-          const pt = m.parentType;
-          await api.post('/units', {
-            ...formData,
-            subjectId:  pt==='subject'  ? m.parentId : null,
-            semesterId: pt==='semester' ? m.parentId : (pt==='subject' ? (subjects.find(s=>s._id===m.parentId)||selectedSubject)?.semesterId : null),
-            academicId: (pt==='root') ? null : selectedAcademic?._id
-          });
-        }
-      }
-      setModal(null);
-      triggerRefresh();
-    } catch(err:any){ alert(err.response?.data?.message||'Error saving'); }
-    finally { setSaving(false); }
-  };
-
-  const handleDelete = async (type:string, id:string) => {
-    if(!confirm('Delete this and all nested content?')) return;
-    try {
-      if (type==='academic')  { await api.delete(`/academics/${id}`);  setSelectedAcademic(null); }
-      if (type==='semester')  { await api.delete(`/semesters/${id}`);  setSelectedSemester(null); }
-      if (type==='subject')   { await api.delete(`/subjects/${id}`);   setSelectedSubject(null); }
-      if (type==='unit')      { await api.delete(`/units/${id}`);      setSelectedUnit(null); }
-      triggerRefresh();
-    } catch { alert('Error deleting'); }
-  };
-
-  // Lock helpers
-  const openLockModal = (subject:Subject, mode:'set'|'remove') => {
-    setPin(''); setPinError(''); setShowPin(false);
-    setLockModal({subject, mode});
-  };
-  const handleLockSubmit = async () => {
-    if(pin.length<4){setPinError('PIN must be at least 4 digits');return;}
-    setLockSaving(true); setPinError('');
-    try {
-      const {subject, mode} = lockModal!;
-      if (mode==='set') {
-        await api.post(`/subjects/${subject._id}/lock`, {pin});
-        setSubjectsL(prev=>prev.map(s=>s._id===subject._id?{...s,isLocked:true}:s));
-      } else {
-        await api.post(`/subjects/${subject._id}/remove-lock`, {pin});
-        unlockedSet.delete(subject._id);
-        setUnlockedSubjects(new Set(unlockedSet));
-        setSubjectsL(prev=>prev.map(s=>s._id===subject._id?{...s,isLocked:false}:s));
-      }
-      setLockModal(null);
-    } catch(err:any){ setPinError(err.response?.data?.message||'Incorrect PIN'); }
-    finally { setLockSaving(false); }
-  };
-
-  // ── Reusable UI pieces ─────────────────────────────────────────
-  const Breadcrumb = ({ extra }: { extra?: string }) => (
-    <div className="flex items-center gap-1 px-4 sm:px-6 py-2.5 overflow-x-auto scrollbar-none flex-shrink-0"
-      style={{borderBottom:'1.5px solid var(--border)',background:'#fff'}}>
-      {selectedAcademic && <><span className="text-xs whitespace-nowrap" style={{color:'var(--ink3)'}}>{selectedAcademic.name}</span><ChevronRight size={11} style={{color:'var(--border2)',flexShrink:0}}/></>}
-      {selectedSemester && <><span className="text-xs whitespace-nowrap" style={{color:'var(--ink3)'}}>{selectedSemester.name}</span><ChevronRight size={11} style={{color:'var(--border2)',flexShrink:0}}/></>}
-      {selectedSubject  && <><span className="text-xs whitespace-nowrap" style={{color:'var(--ink3)'}}>{selectedSubject.name}</span>{extra&&<ChevronRight size={11} style={{color:'var(--border2)',flexShrink:0}}/>}</>}
-      {extra && <span className="text-xs font-semibold whitespace-nowrap" style={{color:'var(--ink)'}}>{extra}</span>}
-    </div>
-  );
-
-  const ActionRow = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex flex-wrap items-center gap-2 mb-5">{children}</div>
-  );
-
-  const BtnCreate = ({ label, icon: Icon, onClick }: { label:string; icon:any; onClick:()=>void }) => (
-    <button onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-      style={{background:'rgba(45,106,79,0.12)',color:'var(--green)',border:'1px solid rgba(45,106,79,0.25)'}}>
-      <Icon size={13}/>{label}
-    </button>
-  );
-  const BtnEdit = ({ onClick }: { onClick:()=>void }) => (
-    <button onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-      style={{background:'rgba(100,100,255,0.08)',color:'#6366f1',border:'1px solid rgba(100,100,255,0.2)'}}>
-      <Pencil size={13}/>Edit
-    </button>
-  );
-  const BtnDelete = ({ onClick }: { onClick:()=>void }) => (
-    <button onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-      style={{background:'rgba(220,38,38,0.08)',color:'var(--red)',border:'1px solid rgba(220,38,38,0.18)'}}>
-      <Trash2 size={13}/>Delete
-    </button>
-  );
-
-  // Shared file cards grid
-  const FilesGrid = ({ parentId, parentType }: { parentId:string; parentType:string }) => (
-    <>
-      {units.length===0 ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
-            style={{background:'var(--paper2)',border:'1.5px solid var(--border)'}}>
-            <FileText size={20} style={{color:'var(--ink3)'}}/>
-          </div>
-          <h3 className="font-semibold mb-1 text-sm" style={{color:'var(--ink2)'}}>No files yet</h3>
-          <p className="text-xs mb-4" style={{color:'var(--ink3)'}}>Create your first file using the button above</p>
-          <button onClick={()=>openModal('unit', parentId, null, parentType)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
-            style={{background:'var(--green)',color:'#fff'}}>
-            <FilePlus size={15}/>New File
-          </button>
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 pb-6">
+        {/* Add block buttons */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          {[{ type: 'text' as ContentType, icon: FileText, label: 'Text' },
+            { type: 'code' as ContentType, icon: Code2, label: 'Code' },
+            { type: 'image' as ContentType, icon: Image, label: 'Image' }].map(({ type, icon: Icon, label }) => (
+            <button key={type} onClick={() => addBlock(type)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
+              style={{ background: 'var(--paper2)', color: 'var(--ink2)', border: '1.5px solid var(--border)' }}>
+              <Icon size={12} />{label} Block
+            </button>
+          ))}
+          <div className="ml-auto"><SaveBadge status={status} /></div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {units.map(unit=>(
-            <div key={unit._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
-              style={{background:'#fff',border:'1.5px solid var(--border)',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'var(--green-lt)'}}>
-                  <FileText size={16} style={{color:'var(--green)'}}/>
+
+        {content.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+              style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+              <FileText size={20} style={{ color: 'var(--ink3)' }} />
+            </div>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>Empty file</p>
+            <p className="text-xs" style={{ color: 'var(--ink3)' }}>Add a text, code, or image block above</p>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {content.map((block, i) => (
+            <div key={block._id || i} className="block-card animate-slide-up">
+              <div className="block-toolbar">
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>
+                  {block.type === 'text' ? '📝 Text' : block.type === 'code' ? '💻 Code' : '🖼 Image'}
+                </span>
+                {block.type === 'code' && (
+                  <select value={block.language || 'javascript'}
+                    onChange={e => updateBlock(i, 'language', e.target.value)}
+                    className="text-xs px-2 py-1 rounded-lg ml-1"
+                    style={{ background: 'var(--paper3)', border: '1px solid var(--border)', color: 'var(--ink2)' }}>
+                    {LANGS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                )}
+                {block.type !== 'image' && (
+                  <button onClick={() => setPreviewing(p => ({ ...p, [block._id || i]: !p[block._id || i] }))}
+                    className="text-xs px-2 py-1 rounded-lg ml-1 transition-colors hover:bg-white"
+                    style={{ color: 'var(--ink3)' }}>
+                    {previewing[block._id || i] ? 'Edit' : 'Preview'}
+                  </button>
+                )}
+                <div className="flex items-center gap-1 ml-auto">
+                  <button onClick={() => moveBlock(i, -1)} disabled={i === 0}
+                    className="nav-icon-btn disabled:opacity-30"><ChevronUp size={13} /></button>
+                  <button onClick={() => moveBlock(i, 1)} disabled={i === content.length - 1}
+                    className="nav-icon-btn disabled:opacity-30"><ChevronDown size={13} /></button>
+                  <button onClick={() => removeBlock(i)} className="nav-icon-btn danger"><X size={13} /></button>
                 </div>
-                <span className={BADGE[unit.progress]}>{LABEL[unit.progress]}</span>
               </div>
-              <button className="text-left w-full mb-2" onClick={()=>setSelectedUnit(unit)}>
-                <h3 className="font-semibold text-sm mb-1 hover:text-green-700 transition-colors" style={{color:'var(--ink)'}}>{unit.name}</h3>
-                {unit.description&&<p className="text-xs line-clamp-2" style={{color:'var(--ink3)'}}>{unit.description}</p>}
-                <div className="flex items-center gap-2 mt-2 text-xs" style={{color:'var(--ink3)'}}>
-                  <span>{unit.content?.length||0} block{unit.content?.length!==1?'s':''}</span>
-                  <span>·</span>
-                  <span>{new Date(unit.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </button>
-              <div className="flex items-center gap-1.5 mt-2 pt-2" style={{borderTop:'1px solid var(--border)'}}>
-                <button onClick={()=>openModal('unit', parentId, unit, parentType)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
-                  style={{color:'#6366f1'}}><Pencil size={11}/>Edit</button>
-                <button onClick={()=>handleDelete('unit', unit._id)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
-                  style={{color:'var(--red)'}}><Trash2 size={11}/>Delete</button>
+              <div className="p-3">
+                <input value={block.title} onChange={e => updateBlock(i, 'title', e.target.value)}
+                  className="input mb-2 text-xs" placeholder="Block title (optional)" />
+                {block.type === 'text' && !previewing[block._id || i] && (
+                  <textarea value={block.value} onChange={e => updateBlock(i, 'value', e.target.value)}
+                    className="input h-32 resize-y text-sm" placeholder="Write your notes here…" />
+                )}
+                {block.type === 'text' && previewing[block._id || i] && (
+                  <div className="min-h-[4rem] text-sm whitespace-pre-wrap p-2 rounded-lg"
+                    style={{ background: 'var(--paper2)', color: 'var(--ink)' }}>{block.value || <span style={{ color: 'var(--ink3)' }}>Nothing to preview</span>}</div>
+                )}
+                {block.type === 'code' && !previewing[block._id || i] && (
+                  <textarea value={block.value} onChange={e => updateBlock(i, 'value', e.target.value)}
+                    className="input h-40 resize-y text-sm font-mono" placeholder={`Write ${block.language || 'code'} here…`} />
+                )}
+                {block.type === 'code' && previewing[block._id || i] && (
+                  <pre className={`language-${block.language || 'javascript'}`}><code>{block.value || '// nothing yet'}</code></pre>
+                )}
+                {block.type === 'image' && (
+                  block.value
+                    ? <div className="relative"><img src={block.value} alt={block.title} className="max-h-64 rounded-xl object-contain" />
+                        <button onClick={() => updateBlock(i, 'value', '')}
+                          className="absolute top-2 right-2 nav-icon-btn danger bg-white rounded-full shadow"><X size={13} /></button></div>
+                    : <button onClick={() => { setImgTarget(i); fileRef.current?.click(); }}
+                        className="w-full h-28 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 text-xs hover:opacity-80 transition-all"
+                        style={{ borderColor: 'var(--border2)', color: 'var(--ink3)' }}>
+                        <Image size={20} /><span>Click to upload image</span>
+                      </button>
+                )}
               </div>
             </div>
           ))}
         </div>
-      )}
-    </>
-  );
-
-  // ── Loading unit ───────────────────────────────────────────────
-  if (loadingUnit) return (
-    <div className="flex-1 flex items-center justify-center" style={{background:'var(--paper)'}}>
-      <Loader2 size={22} className="animate-spin" style={{color:'var(--green)'}}/>
-    </div>
-  );
-
-  // ── Unit editor ────────────────────────────────────────────────
-  if (selectedUnit && fullUnit && !loadingUnit) return (
-    <div className="flex-1 flex flex-col min-h-0" style={{background:'var(--paper)'}}>
-      <Breadcrumb extra={fullUnit.name}/>
-      <div className="px-4 sm:px-6 pt-4 flex-shrink-0">
-        <ActionRow>
-          <BtnEdit onClick={()=>openModal('unit', selectedSubject?._id||selectedSemester?._id||selectedAcademic?._id, fullUnit,
-            selectedSubject?'subject':selectedSemester?'semester':'academic')}/>
-          <BtnDelete onClick={()=>handleDelete('unit', fullUnit._id)}/>
-        </ActionRow>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
       </div>
-      <UnitEditor unit={fullUnit} onUpdate={u=>setFullUnit(u)}/>
-      {renderModals()}
+    </div>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────
+export default function MainContent() {
+  const {
+    selectedFolder, selectedFile,
+    setSelectedFolder, setSelectedFile,
+    sidebarOpen, setSidebarOpen,
+    refreshTrigger, triggerRefresh
+  } = useApp();
+
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [files,   setFiles]   = useState<FileItem[]>([]);
+  const [fullFile, setFullFile] = useState<FileItem | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+
+  // Modal state
+  const [modal, setModal] = useState<{ mode: 'createFolder' | 'editFolder' | 'createFile' | 'editFile'; item?: any } | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formIcon, setFormIcon] = useState('📁');
+  const [formColor, setFormColor] = useState('#6366f1');
+  const [saving, setSaving] = useState(false);
+
+  // Load folders
+  useEffect(() => {
+    api.get('/folders').then(r => setFolders(r.data)).catch(() => {});
+  }, [refreshTrigger]);
+
+  // Load files when folder selected
+  useEffect(() => {
+    if (!selectedFolder) { setFiles([]); return; }
+    api.get(`/files/folder/${selectedFolder._id}`).then(r => setFiles(r.data)).catch(() => {});
+  }, [selectedFolder, refreshTrigger]);
+
+  // Load full file content
+  useEffect(() => {
+    if (!selectedFile) { setFullFile(null); return; }
+    setLoadingFile(true);
+    api.get(`/files/${selectedFile._id}`).then(r => setFullFile(r.data)).catch(() => {}).finally(() => setLoadingFile(false));
+  }, [selectedFile?._id]);
+
+  // ── Modal open helpers ───────────────────────────────────────
+  const openCreateFolder = () => { setFormName(''); setFormIcon('📁'); setFormColor('#6366f1'); setModal({ mode: 'createFolder' }); };
+  const openEditFolder   = (f: Folder) => { setFormName(f.name); setFormIcon(f.icon || '📁'); setFormColor(f.color || '#6366f1'); setModal({ mode: 'editFolder', item: f }); };
+  const openCreateFile   = () => { setFormName(''); setModal({ mode: 'createFile' }); };
+  const openEditFile     = (f: FileItem) => { setFormName(f.name); setModal({ mode: 'editFile', item: f }); };
+
+  // ── Save handler ─────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!formName.trim()) return;
+    setSaving(true);
+    try {
+      if (modal?.mode === 'createFolder') {
+        const r = await api.post('/folders', { name: formName, icon: formIcon, color: formColor });
+        setSelectedFolder(r.data);
+      } else if (modal?.mode === 'editFolder') {
+        await api.put(`/folders/${modal.item._id}`, { name: formName, icon: formIcon, color: formColor });
+        if (selectedFolder?._id === modal.item._id) setSelectedFolder({ ...selectedFolder, name: formName, icon: formIcon, color: formColor });
+      } else if (modal?.mode === 'createFile') {
+        if (!selectedFolder) return;
+        const r = await api.post('/files', { name: formName, folderId: selectedFolder._id });
+        setSelectedFile(r.data);
+      } else if (modal?.mode === 'editFile') {
+        await api.put(`/files/${modal.item._id}`, { name: formName });
+        if (selectedFile?._id === modal.item._id) setSelectedFile({ ...selectedFile, name: formName });
+      }
+      setModal(null);
+      triggerRefresh();
+    } catch (err: any) { alert(err.response?.data?.message || 'Error saving'); }
+    finally { setSaving(false); }
+  };
+
+  // ── Delete handlers ──────────────────────────────────────────
+  const deleteFolder = async (f: Folder) => {
+    if (!confirm(`Delete folder "${f.name}" and all files inside?`)) return;
+    try {
+      await api.delete(`/folders/${f._id}`);
+      if (selectedFolder?._id === f._id) setSelectedFolder(null);
+      triggerRefresh();
+    } catch { alert('Error deleting'); }
+  };
+  const deleteFile = async (f: FileItem) => {
+    if (!confirm(`Delete file "${f.name}"?`)) return;
+    try {
+      await api.delete(`/files/${f._id}`);
+      if (selectedFile?._id === f._id) setSelectedFile(null);
+      triggerRefresh();
+    } catch { alert('Error deleting'); }
+  };
+
+  // ── Breadcrumb ───────────────────────────────────────────────
+  const Breadcrumb = () => (
+    <div className="flex items-center gap-1 px-4 sm:px-6 py-2.5 flex-shrink-0 overflow-x-auto scrollbar-none"
+      style={{ borderBottom: '1.5px solid var(--border)', background: '#fff' }}>
+      {!sidebarOpen && (
+        <button onClick={() => setSidebarOpen(true)} className="mr-2 flex-shrink-0">
+          <Menu size={16} style={{ color: 'var(--ink3)' }} />
+        </button>
+      )}
+      <button onClick={() => setSelectedFolder(null)}
+        className="text-xs hover:underline flex-shrink-0" style={{ color: 'var(--ink3)' }}>Home</button>
+      {selectedFolder && <>
+        <ChevronRight size={11} style={{ color: 'var(--border2)', flexShrink: 0 }} />
+        <button onClick={() => setSelectedFile(null)}
+          className={`text-xs flex-shrink-0 whitespace-nowrap ${selectedFile ? 'hover:underline' : 'font-semibold'}`}
+          style={{ color: selectedFile ? 'var(--ink3)' : 'var(--ink)' }}>{selectedFolder.icon} {selectedFolder.name}</button>
+      </>}
+      {selectedFile && <>
+        <ChevronRight size={11} style={{ color: 'var(--border2)', flexShrink: 0 }} />
+        <span className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--ink)' }}>{selectedFile.name}</span>
+      </>}
     </div>
   );
 
-  // ── Subject view ───────────────────────────────────────────────
-  if (selectedSubject) {
-    const done = units.filter(u=>u.progress==='completed').length;
-    const pct  = units.length ? Math.round((done/units.length)*100) : 0;
+  // ── File view (editor) ───────────────────────────────────────
+  if (selectedFile) {
+    if (loadingFile) return (
+      <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--paper)' }}>
+        <Loader2 size={22} className="animate-spin" style={{ color: 'var(--green)' }} />
+      </div>
+    );
     return (
-      <div className="flex-1 overflow-y-auto" style={{background:'var(--paper)'}}>
-        <Breadcrumb/>
+      <div className="flex-1 flex flex-col min-h-0" style={{ background: 'var(--paper)' }}>
+        <Breadcrumb />
+        <div className="px-4 sm:px-6 pt-4 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <h1 className="text-lg font-bold mr-auto" style={{ color: 'var(--ink)' }}>
+              📄 {fullFile?.name || selectedFile.name}
+            </h1>
+            <BtnEdit onClick={() => openEditFile(selectedFile)} />
+            <BtnDelete onClick={() => deleteFile(selectedFile)} />
+          </div>
+        </div>
+        {fullFile && <FileEditor file={fullFile} onUpdate={f => setFullFile(f)} />}
+        {renderModal()}
+      </div>
+    );
+  }
+
+  // ── Folder view ──────────────────────────────────────────────
+  if (selectedFolder) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: 'var(--paper)' }}>
+        <Breadcrumb />
         <div className="px-4 sm:px-6 py-5 animate-fade-in">
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{color:'var(--ink)'}}>
-                <span>{selectedSubject.icon}</span>{selectedSubject.name}
-              </h1>
-              {selectedSubject.description&&<p className="text-sm mt-1" style={{color:'var(--ink3)'}}>{selectedSubject.description}</p>}
-            </div>
-            <div className="text-sm flex items-center gap-2" style={{color:'var(--ink3)'}}>
-              <span>{units.length} file{units.length!==1?'s':''}</span><span>·</span>
-              <span style={{color:'var(--green)',fontWeight:600}}>{done} done</span>
-            </div>
-          </div>
-          <ActionRow>
-            <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', selectedSubject._id, null, 'subject')}/>
-            <BtnEdit onClick={()=>openModal('subject', selectedSemester?._id, selectedSubject)}/>
-            <BtnDelete onClick={()=>handleDelete('subject', selectedSubject._id)}/>
-            {selectedSubject.isLocked
-              ? <button onClick={()=>openLockModal(selectedSubject,'remove')}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-                  style={{background:'rgba(251,191,36,0.1)',color:'#b45309',border:'1px solid rgba(251,191,36,0.3)'}}>
-                  <LockKeyhole size={13}/>Remove Lock
-                </button>
-              : <button onClick={()=>openLockModal(selectedSubject,'set')}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-                  style={{background:'rgba(100,100,100,0.07)',color:'var(--ink3)',border:'1px solid var(--border)'}}>
-                  <Lock size={13}/>Lock Folder
-                </button>
-            }
-          </ActionRow>
-          {units.length>0&&(
-            <div className="mb-6">
-              <div className="flex justify-between text-xs mb-1.5" style={{color:'var(--ink3)'}}>
-                <span>Progress</span><span style={{color:'var(--green)',fontWeight:600}}>{pct}%</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{background:'var(--paper3)'}}>
-                <div className="h-full rounded-full transition-all duration-700"
-                  style={{width:`${pct}%`,background:'linear-gradient(90deg, var(--green), var(--green-md))'}}/></div>
-            </div>
-          )}
-          <FilesGrid parentId={selectedSubject._id} parentType="subject"/>
-        </div>
-        {renderModals()}
-      </div>
-    );
-  }
-
-  // ── Semester view ──────────────────────────────────────────────
-  if (selectedSemester) {
-    return (
-      <div className="flex-1 overflow-y-auto" style={{background:'var(--paper)'}}>
-        <Breadcrumb/>
-        <div className="px-4 sm:px-6 py-5 animate-fade-in">
-          <div className="mb-4">
-            <h1 className="text-xl sm:text-2xl font-bold" style={{color:'var(--ink)'}}>{selectedSemester.name}</h1>
-            {selectedSemester.description&&<p className="text-sm mt-1" style={{color:'var(--ink3)'}}>{selectedSemester.description}</p>}
-          </div>
-          {/* ✅ New File available right after first folder (semester = 2nd folder) */}
-          <ActionRow>
-            <BtnCreate label="New Folder" icon={FolderPlus} onClick={()=>openModal('subject', selectedSemester._id)}/>
-            <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', selectedSemester._id, null, 'semester')}/>
-            <BtnEdit onClick={()=>openModal('semester', selectedAcademic?._id, selectedSemester)}/>
-            <BtnDelete onClick={()=>handleDelete('semester', selectedSemester._id)}/>
-          </ActionRow>
-
-          {/* Folders */}
-          {subjects.length>0&&(
-            <div className="mb-6">
-              <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Folders</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {subjects.map(subject=>(
-                  <div key={subject._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
-                    style={{background:'#fff',border:'1.5px solid var(--border)',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{background:'var(--green-lt)'}}>{subject.icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors w-full truncate"
-                          style={{color:'var(--ink)'}} onClick={()=>setSelectedSubject(subject)}>{subject.name}</button>
-                      </div>
-                      {subject.isLocked&&<Lock size={13} style={{color:'#fbbf24',flexShrink:0}}/>}
-                    </div>
-                    {subject.description&&<p className="text-xs mb-3 line-clamp-2" style={{color:'var(--ink3)'}}>{subject.description}</p>}
-                    <div className="flex items-center gap-1.5 pt-2" style={{borderTop:'1px solid var(--border)'}}>
-                      <button onClick={()=>setSelectedSubject(subject)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
-                        style={{color:'var(--green)'}}><BookOpen size={11}/>Open</button>
-                      <button onClick={()=>openModal('subject', selectedSemester._id, subject)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
-                        style={{color:'#6366f1'}}><Pencil size={11}/>Edit</button>
-                      <button onClick={()=>handleDelete('subject', subject._id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
-                        style={{color:'var(--red)'}}><Trash2 size={11}/>Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Direct files in this semester */}
-          {(units.length>0 || subjects.length===0) && (
-            <div>
-              {subjects.length>0&&<h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Files</h2>}
-              <FilesGrid parentId={selectedSemester._id} parentType="semester"/>
-            </div>
-          )}
-        </div>
-        {renderModals()}
-      </div>
-    );
-  }
-
-  // ── Academic view ──────────────────────────────────────────────
-  if (selectedAcademic) {
-    return (
-      <div className="flex-1 overflow-y-auto" style={{background:'var(--paper)'}}>
-        <Breadcrumb/>
-        <div className="px-4 sm:px-6 py-5 animate-fade-in">
-          <div className="mb-4">
-            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{color:'var(--ink)'}}>
-              <span>{selectedAcademic.icon}</span>{selectedAcademic.name}
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+              <span>{selectedFolder.icon}</span>{selectedFolder.name}
             </h1>
-            {selectedAcademic.description&&<p className="text-sm mt-1" style={{color:'var(--ink3)'}}>{selectedAcademic.description}</p>}
           </div>
-          {/* ✅ New File available right after first folder (academic = 1st folder) */}
-          <ActionRow>
-            <BtnCreate label="New Folder" icon={FolderPlus} onClick={()=>openModal('semester', selectedAcademic._id)}/>
-            <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', selectedAcademic._id, null, 'academic')}/>
-            <BtnEdit onClick={()=>openModal('academic', undefined, selectedAcademic)}/>
-            <BtnDelete onClick={()=>handleDelete('academic', selectedAcademic._id)}/>
-          </ActionRow>
 
-          {/* Semesters */}
-          {semesters.length>0&&(
-            <div className="mb-6">
-              <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Folders</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {semesters.map(semester=>(
-                  <div key={semester._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
-                    style={{background:'#fff',border:'1.5px solid var(--border)',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:'var(--green-lt)'}}>
-                        <BookOpen size={18} style={{color:'var(--green)'}}/>
-                      </div>
-                      <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors flex-1 truncate"
-                        style={{color:'var(--ink)'}} onClick={()=>setSelectedSemester(semester)}>{semester.name}</button>
-                    </div>
-                    {semester.description&&<p className="text-xs mb-3 line-clamp-2" style={{color:'var(--ink3)'}}>{semester.description}</p>}
-                    <div className="flex items-center gap-1.5 pt-2" style={{borderTop:'1px solid var(--border)'}}>
-                      <button onClick={()=>setSelectedSemester(semester)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
-                        style={{color:'var(--green)'}}><BookOpen size={11}/>Open</button>
-                      <button onClick={()=>openModal('semester', selectedAcademic._id, semester)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
-                        style={{color:'#6366f1'}}><Pencil size={11}/>Edit</button>
-                      <button onClick={()=>handleDelete('semester', semester._id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
-                        style={{color:'var(--red)'}}><Trash2 size={11}/>Delete</button>
-                    </div>
-                  </div>
-                ))}
+          {/* ── Action buttons on main page ── */}
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <BtnCreate label="New File" icon={FilePlus} onClick={openCreateFile} />
+            <BtnEdit onClick={() => openEditFolder(selectedFolder)} />
+            <BtnDelete onClick={() => deleteFolder(selectedFolder)} />
+          </div>
+
+          {/* Files grid */}
+          {files.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+                <FileText size={20} style={{ color: 'var(--ink3)' }} />
               </div>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--ink2)' }}>No files yet</p>
+              <button onClick={openCreateFile}
+                className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90"
+                style={{ background: 'var(--green)', color: '#fff' }}>
+                <FilePlus size={15} />New File
+              </button>
             </div>
-          )}
-
-          {/* Direct files in this academic year */}
-          {(units.length>0 || semesters.length===0) && (
-            <div>
-              {semesters.length>0&&<h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{color:'var(--ink3)'}}>Files</h2>}
-              <FilesGrid parentId={selectedAcademic._id} parentType="academic"/>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {files.map(file => (
+                <div key={file._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                  style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--green-lt)' }}>
+                      <FileText size={16} style={{ color: 'var(--green)' }} />
+                    </div>
+                    <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors flex-1 mt-1"
+                      style={{ color: 'var(--ink)' }} onClick={() => setSelectedFile(file)}>
+                      {file.name}
+                    </button>
+                  </div>
+                  <div className="text-xs mb-3" style={{ color: 'var(--ink3)' }}>
+                    {file.content?.length || 0} block{file.content?.length !== 1 ? 's' : ''} · {new Date(file.updatedAt).toLocaleDateString()}
+                  </div>
+                  {/* Edit & Delete on the card itself — main page */}
+                  <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button onClick={() => setSelectedFile(file)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
+                      style={{ color: 'var(--green)' }}><FileText size={11} />Open</button>
+                    <button onClick={() => openEditFile(file)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
+                      style={{ color: '#6366f1' }}><Pencil size={11} />Edit</button>
+                    <button onClick={() => deleteFile(file)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
+                      style={{ color: 'var(--red)' }}><Trash2 size={11} />Delete</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-        {renderModals()}
+        {renderModal()}
       </div>
     );
   }
 
-  // ── Home screen ────────────────────────────────────────────────
+  // ── Home screen ──────────────────────────────────────────────
   return (
-    <div className="flex-1 overflow-y-auto" style={{background:'var(--paper)'}}>
+    <div className="flex-1 overflow-y-auto" style={{ background: 'var(--paper)' }}>
       <div className="px-4 sm:px-6 py-5 animate-fade-in">
-        <div className="mb-4">
-          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{color:'var(--ink)'}}>
-            <BookOpenCheck size={24} style={{color:'var(--green)'}}/>Welcome to StudSave
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-1">
+          {!sidebarOpen && (
+            <button onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
+              <Menu size={20} style={{ color: 'var(--ink3)' }} />
+            </button>
+          )}
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+            <BookOpenCheck size={24} style={{ color: 'var(--green)' }} />StudSave
           </h1>
-          <p className="text-sm mt-1" style={{color:'var(--ink3)'}}>
-            Create a folder or file to get started.
-          </p>
         </div>
-        <ActionRow>
-          <BtnCreate label="New Folder" icon={GraduationCap} onClick={()=>openModal('academic')}/>
-          <BtnCreate label="New File" icon={FilePlus} onClick={()=>openModal('unit', undefined, null, 'root')}/>
-        </ActionRow>
-        {academics.length>0&&(
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-            {academics.map(academic=>(
-              <div key={academic._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
-                style={{background:'#fff',border:'1.5px solid var(--border)',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <p className="text-sm mb-5" style={{ color: 'var(--ink3)' }}>
+          Create a folder to get started. Inside each folder you can create files.
+        </p>
+
+        {/* ── Action buttons on main page ── */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <BtnCreate label="New Folder" icon={FolderPlus} onClick={openCreateFolder} />
+        </div>
+
+        {/* Folders grid */}
+        {folders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: 'var(--paper2)', border: '1.5px solid var(--border)' }}>
+              <FolderIcon size={28} style={{ color: 'var(--ink3)' }} />
+            </div>
+            <p className="text-base font-semibold mb-1" style={{ color: 'var(--ink2)' }}>No folders yet</p>
+            <p className="text-sm mb-4" style={{ color: 'var(--ink3)' }}>Create your first folder to start organising</p>
+            <button onClick={openCreateFolder}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90"
+              style={{ background: 'var(--green)', color: '#fff' }}>
+              <FolderPlus size={16} />Create Folder
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {folders.map(folder => (
+              <div key={folder._id} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5 animate-slide-up"
+                style={{ background: '#fff', border: '1.5px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{background:'var(--green-lt)'}}>{academic.icon}</div>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ background: `${folder.color}18` }}>
+                    {folder.icon || '📁'}
+                  </div>
                   <button className="font-semibold text-sm text-left hover:text-green-700 transition-colors flex-1 truncate"
-                    style={{color:'var(--ink)'}} onClick={()=>setSelectedAcademic(academic)}>{academic.name}</button>
+                    style={{ color: 'var(--ink)' }} onClick={() => setSelectedFolder(folder)}>
+                    {folder.name}
+                  </button>
                 </div>
-                {academic.description&&<p className="text-xs mb-3 line-clamp-2" style={{color:'var(--ink3)'}}>{academic.description}</p>}
-                <div className="flex items-center gap-1.5 pt-2" style={{borderTop:'1px solid var(--border)'}}>
-                  <button onClick={()=>setSelectedAcademic(academic)}
+                {/* Edit & Delete on the card — main page only */}
+                <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <button onClick={() => setSelectedFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition-colors"
-                    style={{color:'var(--green)'}}><BookOpen size={11}/>Open</button>
-                  <button onClick={()=>openModal('academic', undefined, academic)}
+                    style={{ color: 'var(--green)' }}><FolderIcon size={11} />Open</button>
+                  <button onClick={() => openEditFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-indigo-50 transition-colors"
-                    style={{color:'#6366f1'}}><Pencil size={11}/>Edit</button>
-                  <button onClick={()=>handleDelete('academic', academic._id)}
+                    style={{ color: '#6366f1' }}><Pencil size={11} />Edit</button>
+                  <button onClick={() => deleteFolder(folder)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs hover:bg-red-50 transition-colors"
-                    style={{color:'var(--red)'}}><Trash2 size={11}/>Delete</button>
+                    style={{ color: 'var(--red)' }}><Trash2 size={11} />Delete</button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-      {renderModals()}
+      {renderModal()}
     </div>
   );
 
-  // ── Modals ─────────────────────────────────────────────────────
-  function renderModals() {
-    return (
-      <>
-        {modal&&(
-          <Modal title={`${modal.item?'Edit':'New'} ${ modal.type==='unit' ? 'File' : modal.type==='academic'||modal.type==='semester'||modal.type==='subject' ? 'Folder' : modal.type.charAt(0).toUpperCase()+modal.type.slice(1) }`} onClose={()=>setModal(null)}>
-            <div className="space-y-4">
-              {(modal.type==='academic'||modal.type==='subject')&&(
-                <div>
-                  <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{color:'var(--ink3)'}}>Icon</label>
-                  <div className="flex flex-wrap gap-2">
-                    {ICONS.map(icon=>(
-                      <button key={icon} onClick={()=>setFormData(p=>({...p,icon}))}
-                        className="w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all hover:scale-105"
-                        style={{background:formData.icon===icon?'var(--green-lt)':'var(--paper2)',boxShadow:formData.icon===icon?'0 0 0 2px var(--green)':'none'}}>
-                        {icon}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{color:'var(--ink3)'}}>Name *</label>
-                <input value={formData.name} onChange={e=>setFormData(p=>({...p,name:e.target.value}))}
-                  className="input" placeholder={`${modal.type==='unit'?'File':modal.type==='academic'||modal.type==='semester'||modal.type==='subject'?'Folder':modal.type} name…`} autoFocus
-                  onKeyDown={e=>{if(e.key==='Enter')handleSave();}}/>
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{color:'var(--ink3)'}}>Description</label>
-                <textarea value={formData.description} onChange={e=>setFormData(p=>({...p,description:e.target.value}))}
-                  className="input h-20 resize-none" placeholder="Optional…"/>
-              </div>
-              {(modal.type==='academic'||modal.type==='subject')&&(
-                <div>
-                  <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{color:'var(--ink3)'}}>Color</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {COLORS.map(c=>(
-                      <button key={c} onClick={()=>setFormData(p=>({...p,color:c}))}
-                        className="w-7 h-7 rounded-full transition-all hover:scale-110"
-                        style={{background:c,boxShadow:formData.color===c?`0 0 0 2px #fff, 0 0 0 4px ${c}`:'none'}}/>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-2 justify-end pt-1">
-                <button onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
-                <button onClick={handleSave} disabled={saving||!formData.name.trim()} className="btn-primary">
-                  {saving?<Loader2 size={13} className="animate-spin"/>:null}
-                  {saving?'Saving…':modal.item?'Save Changes':'Create'}
-                </button>
-              </div>
-            </div>
-          </Modal>
-        )}
+  // ── Modal renderer ───────────────────────────────────────────
+  function renderModal() {
+    if (!modal) return null;
+    const isFolder = modal.mode === 'createFolder' || modal.mode === 'editFolder';
+    const isCreate = modal.mode === 'createFolder' || modal.mode === 'createFile';
+    const title = isCreate ? (isFolder ? 'New Folder' : 'New File') : (isFolder ? 'Edit Folder' : 'Rename File');
 
-        {lockModal&&(
-          <Modal
-            title={lockModal.mode==='set'?`🔒 Lock "${lockModal.subject.name}"`:`🔓 Remove lock from "${lockModal.subject.name}"`}
-            onClose={()=>setLockModal(null)}>
-            <div className="space-y-4">
-              <p className="text-sm" style={{color:'var(--ink2)'}}>
-                {lockModal.mode==='set'?'Set a PIN to protect this folder. You\'ll need it to open it later.'
-                  :'Enter the current PIN to remove the lock from this folder.'}
-              </p>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{color:'var(--ink3)'}}>
-                  {lockModal.mode==='set'?'New PIN (4+ digits)':'PIN'}
-                </label>
-                <div className="relative">
-                  <LockKeyhole size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{color:'var(--ink3)'}}/>
-                  <input type={showPin?'text':'password'} inputMode="numeric" value={pin}
-                    onChange={e=>{setPin(e.target.value.replace(/\D/g,''));setPinError('');}}
-                    onKeyDown={e=>{if(e.key==='Enter')handleLockSubmit();}}
-                    className="input pl-9 pr-10 text-lg tracking-widest font-mono"
-                    placeholder="••••" maxLength={8} autoFocus/>
-                  <button type="button" onClick={()=>setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2" style={{color:'var(--ink3)'}}>
-                    {showPin?<EyeOff size={14}/>:<Eye size={14}/>}
+    return (
+      <Modal title={title} onClose={() => setModal(null)}>
+        <div className="space-y-4">
+          {isFolder && (
+            <div>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Icon</label>
+              <div className="flex flex-wrap gap-2">
+                {ICONS.map(icon => (
+                  <button key={icon} onClick={() => setFormIcon(icon)}
+                    className="w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all hover:scale-105"
+                    style={{ background: formIcon === icon ? 'var(--green-lt)' : 'var(--paper2)', boxShadow: formIcon === icon ? '0 0 0 2px var(--green)' : 'none' }}>
+                    {icon}
                   </button>
-                </div>
-                {pinError&&<p className="text-xs mt-1.5 font-medium" style={{color:'var(--red)'}}>{pinError}</p>}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button onClick={()=>setLockModal(null)} className="btn-ghost">Cancel</button>
-                <button onClick={handleLockSubmit} disabled={lockSaving||pin.length<4} className="btn-primary"
-                  style={{background:lockModal.mode==='remove'?'var(--red)':undefined}}>
-                  {lockSaving?<Loader2 size={13} className="animate-spin"/>:
-                    lockModal.mode==='set'?<><Lock size={13}/>Lock Folder</>:<><Unlock size={13}/>Remove Lock</>}
-                </button>
+                ))}
               </div>
             </div>
-          </Modal>
-        )}
-      </>
+          )}
+          <div>
+            <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Name *</label>
+            <input value={formName} onChange={e => setFormName(e.target.value)}
+              className="input" placeholder={isFolder ? 'Folder name…' : 'File name…'} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+          </div>
+          {isFolder && (
+            <div>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'var(--ink3)' }}>Color</label>
+              <div className="flex gap-2 flex-wrap">
+                {COLORS.map(c => (
+                  <button key={c} onClick={() => setFormColor(c)}
+                    className="w-7 h-7 rounded-full transition-all hover:scale-110"
+                    style={{ background: c, boxShadow: formColor === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : 'none' }} />
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end pt-1">
+            <button onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
+            <button onClick={handleSave} disabled={saving || !formName.trim()} className="btn-primary">
+              {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+              {saving ? 'Saving…' : isCreate ? 'Create' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     );
   }
 }

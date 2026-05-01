@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../utils/api';
-import { ContentBlock } from '../utils/types';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
-export const useAutoSave = (unitId: string) => {
+export const useAutoSave = (fileId: string) => {
   const [status, setStatus] = useState<SaveStatus>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,15 +18,14 @@ export const useAutoSave = (unitId: string) => {
     };
   }, []);
 
-  const save = useCallback((content: ContentBlock[]) => {
+  const save = useCallback((content: any[]) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-    // Show pending state only after a short delay so rapid typing doesn't flicker
     setStatus('saving');
 
     timerRef.current = setTimeout(async () => {
       try {
-        await api.patch(`/units/${unitId}/content`, { content });
+        await api.patch(`/files/${fileId}/content`, { content });
         if (!mountedRef.current) return;
         setStatus('saved');
         resetTimerRef.current = setTimeout(() => {
@@ -41,7 +39,7 @@ export const useAutoSave = (unitId: string) => {
         }, 3000);
       }
     }, 800);
-  }, [unitId]);
+  }, [fileId]);
 
   return { save, status };
 };
