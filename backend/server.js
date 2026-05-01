@@ -15,7 +15,9 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
 
-// API Routes — Single-user app, no authentication required
+// API Routes
+app.use('/api/folders',   require('./routes/folders'));
+app.use('/api/files',     require('./routes/files'));
 app.use('/api/academics', require('./routes/academics'));
 app.use('/api/semesters', require('./routes/semesters'));
 app.use('/api/subjects',  require('./routes/subjects'));
@@ -41,23 +43,19 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 StudSave running on port ${PORT}`);
 
-  // ── Keep-alive ping for Render free tier ──────────────────────
-  // Render shuts down free servers after ~15 min of inactivity.
-  // This self-ping every 14 minutes prevents that.
   const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  const PING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  const PING_INTERVAL_MS = 5 * 60 * 1000;
 
   setInterval(async () => {
     try {
-      const http  = RENDER_URL.startsWith('https') ? require('https') : require('http');
+      const http = RENDER_URL.startsWith('https') ? require('https') : require('http');
       http.get(`${RENDER_URL}/api/health`, (res) => {
-        console.log(`🏓 Keep-alive ping sent → status ${res.statusCode}`);
+        console.log(`🏓 Keep-alive ping → ${res.statusCode}`);
       }).on('error', (err) => {
-        console.warn(`⚠️  Keep-alive ping failed: ${err.message}`);
+        console.warn(`⚠️  Ping failed: ${err.message}`);
       });
     } catch (err) {
-      console.warn(`⚠️  Keep-alive ping error: ${err.message}`);
+      console.warn(`⚠️  Ping error: ${err.message}`);
     }
   }, PING_INTERVAL_MS);
-  // ─────────────────────────────────────────────────────────────
 });
